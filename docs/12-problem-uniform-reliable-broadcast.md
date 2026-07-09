@@ -1,8 +1,14 @@
 # 12 — Problem 3 (medium): Uniform Reliable Broadcast under crash faults
 
+**Status:** Done.
+
 **Depends on:** 07; 08+09 for platform E2E. Independent of plans 10 and 11.
 **Source:** Cachin/Guerraoui/Rodrigues ch. 3 (Majority-Ack Uniform Reliable Broadcast).
 Follow `docs/problem-authoring.md`.
+
+Implemented the `uniform-reliable-broadcast` problem package with manifest, statement,
+starter template, hidden harness, a reusable `UniformAgreement` checker, and adversarial
+testdata covering the majority-ack reference solution, eager delivery, and missing relay.
 
 ## Statement
 

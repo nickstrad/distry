@@ -69,6 +69,27 @@ func (c AllDelivered) AtEnd(cluster ClusterView, res *sim.Result) *Violation {
 	return nil
 }
 
+type UniformAgreement struct {
+	DeliverAction string
+}
+
+func (c UniformAgreement) Name() string { return "UniformAgreement" }
+
+func (c UniformAgreement) AtEnd(cluster ClusterView, res *sim.Result) *Violation {
+	action := defaultAction(c.DeliverAction, ActionDeliver)
+	delivered := recordsByNodePayload(cluster.RecordsByAction(action))
+	for _, r := range cluster.RecordsByAction(action) {
+		for _, node := range cluster.CorrectNodes() {
+			if !delivered[node][r.Payload] {
+				return &Violation{
+					Message: fmt.Sprintf("node %d delivered %q but correct node %d did not", r.Node, r.Payload, node),
+				}
+			}
+		}
+	}
+	return nil
+}
+
 type AgreementOnDecision struct {
 	Action string
 }
