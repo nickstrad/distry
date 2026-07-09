@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"distry/internal/auth"
 	"distry/internal/problems"
 )
 
@@ -99,6 +101,7 @@ func TestGetProblemNotFound(t *testing.T) {
 func newTestServer(pingErr error, loaded map[string]problems.Problem) *Server {
 	return New(
 		fakePinger{err: pingErr},
+		auth.NewService(&fakeUserRepo{}, &fakeSessionRepo{}),
 		fakeProblemRepo{problems: loaded},
 		http.NotFoundHandler(),
 	)
@@ -110,6 +113,30 @@ func request(srv *Server, method, target string) *httptest.ResponseRecorder {
 
 	srv.Routes().ServeHTTP(rec, req)
 	return rec
+}
+
+type fakeUserRepo struct{}
+
+func (f *fakeUserRepo) Create(context.Context, string, string, string) (auth.User, error) {
+	return auth.User{}, nil
+}
+
+func (f *fakeUserRepo) ByEmail(context.Context, string) (auth.User, string, error) {
+	return auth.User{}, "", auth.ErrInvalidCredentials
+}
+
+type fakeSessionRepo struct{}
+
+func (f *fakeSessionRepo) Create(context.Context, []byte, string, time.Time) error {
+	return nil
+}
+
+func (f *fakeSessionRepo) UserByTokenHash(context.Context, []byte) (auth.User, error) {
+	return auth.User{}, auth.ErrUnauthenticated
+}
+
+func (f *fakeSessionRepo) Delete(context.Context, []byte) error {
+	return nil
 }
 
 func assertHealthResponse(t *testing.T, rec *httptest.ResponseRecorder, want healthResponse) {

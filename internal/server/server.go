@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"distry/internal/auth"
 	"distry/internal/problems"
 
 	"github.com/go-chi/chi/v5"
@@ -19,6 +20,7 @@ type Pinger interface {
 
 type Server struct {
 	pool        Pinger
+	auth        *auth.Service
 	problemRepo problems.Repo
 	frontend    http.Handler
 }
@@ -28,15 +30,23 @@ type healthResponse struct {
 	DB     string `json:"db"`
 }
 
-func New(pool Pinger, problemRepo problems.Repo, frontend http.Handler) *Server {
-	return &Server{pool: pool, problemRepo: problemRepo, frontend: frontend}
+func New(pool Pinger, authService *auth.Service, problemRepo problems.Repo, frontend http.Handler) *Server {
+	return &Server{pool: pool, auth: authService, problemRepo: problemRepo, frontend: frontend}
 }
 
 func (s *Server) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 
+	authHandler := auth.NewHandler(s.auth)
 	r.Get("/api/health", s.health)
+	r.Post("/api/auth/signup", authHandler.SignUp)
+	r.Post("/api/auth/login", authHandler.LogIn)
+	r.Post("/api/auth/logout", authHandler.LogOut)
+	r.Group(func(r chi.Router) {
+		r.Use(auth.Middleware(s.auth))
+		r.Get("/api/me", authHandler.Me)
+	})
 	r.Get("/api/problems", s.listProblems)
 	r.Get("/api/problems/{slug}", s.getProblem)
 	r.Handle("/*", s.frontend)
