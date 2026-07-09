@@ -2,26 +2,33 @@ import { useState } from 'react'
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { api } from './api.js'
 import { AuthProvider, useAuth } from './auth.jsx'
+import { Button } from './components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
+import { Input } from './components/ui/input'
+import { Label } from './components/ui/label'
+import { TooltipProvider } from './components/ui/tooltip'
 import ProblemList from './pages/ProblemList.jsx'
 import ProblemWorkspace from './pages/ProblemWorkspace.jsx'
 import './styles.css'
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Routes>
-        <Route path="/login" element={<AuthPage mode="login" />} />
-        <Route path="/signup" element={<AuthPage mode="signup" />} />
-        <Route
-          path="*"
-          element={
-            <RequireAuth>
-              <Shell />
-            </RequireAuth>
-          }
-        />
-      </Routes>
-    </AuthProvider>
+    <TooltipProvider>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<AuthPage mode="login" />} />
+          <Route path="/signup" element={<AuthPage mode="signup" />} />
+          <Route
+            path="*"
+            element={
+              <RequireAuth>
+                <Shell />
+              </RequireAuth>
+            }
+          />
+        </Routes>
+      </AuthProvider>
+    </TooltipProvider>
   )
 }
 
@@ -75,24 +82,27 @@ function AuthPage({ mode }) {
 
   return (
     <main className="auth-screen">
-      <section className="auth-panel">
-        <h1>{isSignup ? 'Create your account' : 'Welcome back'}</h1>
+      <Card className="auth-panel">
+        <CardHeader>
+          <CardTitle>{isSignup ? 'Create your account' : 'Welcome back'}</CardTitle>
+        </CardHeader>
+        <CardContent>
         <form onSubmit={submit}>
           {isSignup && (
-            <label>
+            <Label className="form-label">
               Username
-              <input
+              <Input
                 name="username"
                 value={form.username}
                 onChange={updateField}
                 autoComplete="username"
                 required
               />
-            </label>
+            </Label>
           )}
-          <label>
+          <Label className="form-label">
             Email
-            <input
+            <Input
               name="email"
               type="email"
               value={form.email}
@@ -100,10 +110,10 @@ function AuthPage({ mode }) {
               autoComplete="email"
               required
             />
-          </label>
-          <label>
+          </Label>
+          <Label className="form-label">
             Password
-            <input
+            <Input
               name="password"
               type="password"
               value={form.password}
@@ -112,17 +122,18 @@ function AuthPage({ mode }) {
               minLength={8}
               required
             />
-          </label>
+          </Label>
           {error && <p className="error">{error}</p>}
-          <button type="submit" disabled={submitting}>
+          <Button type="submit" disabled={submitting} size="lg">
             {submitting ? 'Working...' : isSignup ? 'Sign up' : 'Log in'}
-          </button>
+          </Button>
         </form>
         <p className="switch">
           {isSignup ? 'Already have an account?' : 'Need an account?'}{' '}
           <Link to={isSignup ? '/login' : '/signup'}>{isSignup ? 'Log in' : 'Sign up'}</Link>
         </p>
-      </section>
+        </CardContent>
+      </Card>
     </main>
   )
 }
@@ -150,9 +161,9 @@ function Shell() {
         </Link>
         <div className="account">
           <span>{user.username}</span>
-          <button type="button" className="ghost-button" onClick={signOut}>
+          <Button type="button" variant="outline" onClick={signOut}>
             Sign out
-          </button>
+          </Button>
         </div>
       </header>
       <Routes>

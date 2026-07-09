@@ -2,6 +2,8 @@ import { Link, useParams } from 'react-router-dom'
 import Editor from '../components/Editor.jsx'
 import Markdown from '../components/Markdown.jsx'
 import { DifficultyBadge, TagList } from '../components/ProblemBadges.jsx'
+import { Button } from '../components/ui/button'
+import { Skeleton } from '../components/ui/skeleton'
 import { useProblem } from '../hooks/useProblem.js'
 import { useSolutionFiles } from '../hooks/useSolutionFiles.js'
 
@@ -10,7 +12,14 @@ export default function ProblemWorkspace() {
   const { problem, loading, error } = useProblem(slug)
   const solution = useSolutionFiles(problem)
 
-  if (loading) return <section className="workspace">Loading problem...</section>
+  if (loading) {
+    return (
+      <section className="workspace">
+        <span className="sr-only">Loading problem...</span>
+        <Skeleton className="h-7 w-52" />
+      </section>
+    )
+  }
   if (error) return <section className="workspace error-panel">{error}</section>
 
   return (
@@ -53,9 +62,9 @@ function CodeToolbar({ solution }) {
       />
       <div className="run-controls">
         <span>Changes are not saved yet</span>
-        <button type="button" disabled>
+        <Button type="button" disabled>
           Run
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -65,7 +74,8 @@ function FileTabs({ activeFile, fileNames, onSelect }) {
   return (
     <div className="file-tabs" role="tablist" aria-label="Template files">
       {fileNames.map((fileName) => (
-        <button
+        <Button
+          variant={fileName === activeFile ? 'secondary' : 'ghost'}
           className={fileName === activeFile ? 'file-tab active' : 'file-tab'}
           key={fileName}
           type="button"
@@ -74,7 +84,7 @@ function FileTabs({ activeFile, fileNames, onSelect }) {
           onClick={() => onSelect(fileName)}
         >
           {fileName}
-        </button>
+        </Button>
       ))}
     </div>
   )

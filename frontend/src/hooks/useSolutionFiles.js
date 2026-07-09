@@ -1,25 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
 
 export function useSolutionFiles(problem) {
-  const templateFiles = problem?.templates || {}
+  const templateFiles = useMemo(() => problem?.templates || {}, [problem])
   const fileNames = useMemo(() => Object.keys(templateFiles).sort(), [templateFiles])
   const [files, setFiles] = useState({})
   const [activeFile, setActiveFile] = useState('')
+  const effectiveActiveFile = activeFile || fileNames[0] || ''
 
   useEffect(() => {
     setFiles(templateFiles)
     setActiveFile(fileNames[0] || '')
-  }, [problem?.slug])
+  }, [fileNames, templateFiles])
 
   function updateActiveFile(content) {
-    setFiles((current) => ({ ...current, [activeFile]: content }))
+    setFiles((current) => ({ ...current, [effectiveActiveFile]: content }))
   }
 
   return {
     files,
     fileNames,
-    activeFile,
-    activeContent: files[activeFile] || '',
+    activeFile: effectiveActiveFile,
+    activeContent: files[effectiveActiveFile] || '',
     setActiveFile,
     updateActiveFile,
   }

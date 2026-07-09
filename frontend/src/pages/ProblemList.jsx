@@ -1,11 +1,20 @@
 import { Link } from 'react-router-dom'
 import { DifficultyBadge, TagList } from '../components/ProblemBadges.jsx'
+import { Card } from '../components/ui/card'
+import { Skeleton } from '../components/ui/skeleton'
 import { useProblems } from '../hooks/useProblem.js'
 
 export default function ProblemList() {
   const { problems, loading, error } = useProblems()
 
-  if (loading) return <section className="workspace">Loading problems...</section>
+  if (loading) {
+    return (
+      <Card className="workspace">
+        <span className="sr-only">Loading problems...</span>
+        <Skeleton className="h-7 w-48" />
+      </Card>
+    )
+  }
   if (error) return <section className="workspace error-panel">{error}</section>
 
   return (

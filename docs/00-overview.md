@@ -23,7 +23,8 @@ Failures report the seed so the exact run is **replayable**.
 ## Stack (already scaffolded)
 
 - Backend: Go 1.26 + chi (`main.go`), serves embedded React build in prod.
-- Frontend: React 18 + Vite (`frontend/`).
+- Frontend: React 19 + Vite + TypeScript-ready JavaScript/TSX mix (`frontend/`), with
+  Tailwind v4 and local shadcn/ui components. See `docs/guide-frontend.md`.
 - DB: Neon Postgres, `DATABASE_URL` in `.env` (never commit or print it).
 - Auth: in-house Go email/password auth — small `users` + `sessions` tables, bcrypt,
   HttpOnly session cookie. Deliberately minimal: it will be replaced by a cloud OAuth
