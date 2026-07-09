@@ -1,5 +1,7 @@
 # 14 — Documentation: platform guides + top-level README
 
+**Status:** Done.
+
 **Depends on:** conceptually all plans (documents what they built). Can be drafted any
 time after 07 (the contracts are stable then); finalized after 13. No plan depends on it.
 

@@ -1,5 +1,3 @@
-// Package simtest provides harness helpers and invariant checkers for problem
-// authors building on top of pkg/sim.
 package simtest
 
 import (
