@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"distry/internal/auth"
 	"distry/internal/config"
 	"distry/internal/db"
 	"distry/internal/server"
@@ -35,7 +36,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	app := server.New(pool, web.FrontendHandler())
+	authService := auth.NewService(auth.NewPGUserRepo(pool), auth.NewPGSessionRepo(pool))
+	app := server.New(pool, authService, web.FrontendHandler())
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           app.Routes(),

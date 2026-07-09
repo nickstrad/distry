@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	"distry/internal/auth"
 )
 
 type fakePinger struct {
@@ -18,7 +21,7 @@ func (f fakePinger) Ping(context.Context) error {
 }
 
 func TestHealthOK(t *testing.T) {
-	srv := New(fakePinger{}, http.NotFoundHandler())
+	srv := newTestServer(fakePinger{})
 	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
 	rec := httptest.NewRecorder()
 
@@ -31,7 +34,7 @@ func TestHealthOK(t *testing.T) {
 }
 
 func TestHealthUnreachable(t *testing.T) {
-	srv := New(fakePinger{err: errors.New("nope")}, http.NotFoundHandler())
+	srv := newTestServer(fakePinger{err: errors.New("nope")})
 	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
 	rec := httptest.NewRecorder()
 
@@ -41,6 +44,34 @@ func TestHealthUnreachable(t *testing.T) {
 		t.Fatalf("expected status 503, got %d", rec.Code)
 	}
 	assertHealthResponse(t, rec, healthResponse{Status: "error", DB: "unreachable"})
+}
+
+func newTestServer(pinger Pinger) *Server {
+	return New(pinger, auth.NewService(&fakeUserRepo{}, &fakeSessionRepo{}), http.NotFoundHandler())
+}
+
+type fakeUserRepo struct{}
+
+func (f *fakeUserRepo) Create(context.Context, string, string, string) (auth.User, error) {
+	return auth.User{}, nil
+}
+
+func (f *fakeUserRepo) ByEmail(context.Context, string) (auth.User, string, error) {
+	return auth.User{}, "", auth.ErrInvalidCredentials
+}
+
+type fakeSessionRepo struct{}
+
+func (f *fakeSessionRepo) Create(context.Context, []byte, string, time.Time) error {
+	return nil
+}
+
+func (f *fakeSessionRepo) UserByTokenHash(context.Context, []byte) (auth.User, error) {
+	return auth.User{}, auth.ErrUnauthenticated
+}
+
+func (f *fakeSessionRepo) Delete(context.Context, []byte) error {
+	return nil
 }
 
 func assertHealthResponse(t *testing.T, rec *httptest.ResponseRecorder, want healthResponse) {
