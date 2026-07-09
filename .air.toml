@@ -4,7 +4,7 @@ tmp_dir = "tmp"
 [build]
   # Build with the `dev` tag so the server doesn't require frontend/dist to
   # exist (Vite serves the frontend in dev).
-  cmd = "go build -tags dev -o ./tmp/distry ."
+  cmd = "go build -tags dev -o ./tmp/distry ./cmd/server"
   bin = "./tmp/distry"
   delay = 200
   include_ext = ["go"]
