@@ -12,6 +12,7 @@ export default function ProblemWorkspace() {
 
   if (loading) return <section className="workspace">Loading problem...</section>
   if (error) return <section className="workspace error-panel">{error}</section>
+  if (solution.loading) return <section className="workspace">Loading solution...</section>
 
   return (
     <section className="problem-workspace">
@@ -31,6 +32,7 @@ export default function ProblemWorkspace() {
 
       <section className="code-pane" aria-label="Solution editor">
         <CodeToolbar solution={solution} />
+        {solution.error && <p className="error solution-error">{solution.error}</p>}
         <div className="editor-frame">
           <Editor
             fileName={solution.activeFile}
@@ -52,13 +54,27 @@ function CodeToolbar({ solution }) {
         onSelect={solution.setActiveFile}
       />
       <div className="run-controls">
-        <span>Changes are not saved yet</span>
+        <span className={solution.dirty ? 'save-state dirty' : 'save-state'}>
+          {saveLabel(solution)}
+        </span>
+        <button type="button" onClick={solution.reset} disabled={solution.busy}>
+          Reset
+        </button>
+        <button type="button" onClick={solution.save} disabled={!solution.dirty || solution.busy}>
+          Save
+        </button>
         <button type="button" disabled>
           Run
         </button>
       </div>
     </div>
   )
+}
+
+function saveLabel(solution) {
+  if (solution.saving) return 'Saving...'
+  if (solution.dirty) return 'Unsaved changes'
+  return 'Saved'
 }
 
 function FileTabs({ activeFile, fileNames, onSelect }) {

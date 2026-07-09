@@ -6,11 +6,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"distry/internal/auth"
 	"distry/internal/problems"
+	"distry/internal/solutions"
 )
 
 type fakePinger struct {
@@ -98,17 +100,87 @@ func TestGetProblemNotFound(t *testing.T) {
 	}
 }
 
+func TestPutThenGetSolutionRoundTripsForAuthenticatedUser(t *testing.T) {
+	srv := newTestServer(nil, map[string]problems.Problem{
+		"perfect-link": {
+			Slug:      "perfect-link",
+			Templates: map[string]string{"solution.go": "package solution\n"},
+		},
+	})
+
+	rec := requestWithBody(srv, http.MethodPut, "/api/problems/perfect-link/solution", `{"files":{"solution.go":"package solution\n// saved\n"}}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = request(srv, http.MethodGet, "/api/problems/perfect-link/solution")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var got solutions.Solution
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Files["solution.go"] != "package solution\n// saved\n" {
+		t.Fatalf("unexpected solution files %+v", got.Files)
+	}
+}
+
+func TestSolutionIsScopedToAuthenticatedUser(t *testing.T) {
+	store := newMemorySolutionRepo()
+	problemRepo := fakeProblemRepo{problems: map[string]problems.Problem{
+		"perfect-link": {
+			Slug:      "perfect-link",
+			Templates: map[string]string{"solution.go": "package solution\n"},
+		},
+	}}
+	srvA := New(
+		fakePinger{},
+		auth.NewService(&fakeUserRepo{}, &fakeSessionRepo{user: auth.User{ID: "user-a", Username: "ada"}}),
+		problemRepo,
+		solutions.NewService(store, problemRepo),
+		http.NotFoundHandler(),
+	)
+	srvB := New(
+		fakePinger{},
+		auth.NewService(&fakeUserRepo{}, &fakeSessionRepo{user: auth.User{ID: "user-b", Username: "grace"}}),
+		problemRepo,
+		solutions.NewService(store, problemRepo),
+		http.NotFoundHandler(),
+	)
+
+	rec := requestWithBody(srvA, http.MethodPut, "/api/problems/perfect-link/solution", `{"files":{"solution.go":"package solution\n// user a\n"}}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = request(srvB, http.MethodGet, "/api/problems/perfect-link/solution")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected user B to get 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func newTestServer(pingErr error, loaded map[string]problems.Problem) *Server {
+	problemRepo := fakeProblemRepo{problems: loaded}
 	return New(
 		fakePinger{err: pingErr},
-		auth.NewService(&fakeUserRepo{}, &fakeSessionRepo{}),
-		fakeProblemRepo{problems: loaded},
+		auth.NewService(&fakeUserRepo{}, &fakeSessionRepo{user: auth.User{ID: "user-a", Username: "ada"}}),
+		problemRepo,
+		solutions.NewService(newMemorySolutionRepo(), problemRepo),
 		http.NotFoundHandler(),
 	)
 }
 
 func request(srv *Server, method, target string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(method, target, nil)
+	return requestWithBody(srv, method, target, "")
+}
+
+func requestWithBody(srv *Server, method, target, body string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, target, strings.NewReader(body))
+	if body != "" {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: "token"})
 	rec := httptest.NewRecorder()
 
 	srv.Routes().ServeHTTP(rec, req)
@@ -125,14 +197,19 @@ func (f *fakeUserRepo) ByEmail(context.Context, string) (auth.User, string, erro
 	return auth.User{}, "", auth.ErrInvalidCredentials
 }
 
-type fakeSessionRepo struct{}
+type fakeSessionRepo struct {
+	user auth.User
+}
 
 func (f *fakeSessionRepo) Create(context.Context, []byte, string, time.Time) error {
 	return nil
 }
 
 func (f *fakeSessionRepo) UserByTokenHash(context.Context, []byte) (auth.User, error) {
-	return auth.User{}, auth.ErrUnauthenticated
+	if f.user.ID == "" {
+		return auth.User{}, auth.ErrUnauthenticated
+	}
+	return f.user, nil
 }
 
 func (f *fakeSessionRepo) Delete(context.Context, []byte) error {
@@ -179,4 +256,25 @@ func (f fakeProblemRepo) Get(_ context.Context, slug string) (problems.Problem, 
 		return problems.Problem{}, problems.ErrNotFound
 	}
 	return problem, nil
+}
+
+type memorySolutionRepo struct {
+	solutions map[string]solutions.Solution
+}
+
+func newMemorySolutionRepo() *memorySolutionRepo {
+	return &memorySolutionRepo{solutions: map[string]solutions.Solution{}}
+}
+
+func (r *memorySolutionRepo) Upsert(_ context.Context, solution solutions.Solution) error {
+	r.solutions[solution.UserID+"/"+solution.ProblemSlug] = solution
+	return nil
+}
+
+func (r *memorySolutionRepo) Get(_ context.Context, userID, slug string) (solutions.Solution, error) {
+	solution, ok := r.solutions[userID+"/"+slug]
+	if !ok {
+		return solutions.Solution{}, solutions.ErrNotFound
+	}
+	return solution, nil
 }

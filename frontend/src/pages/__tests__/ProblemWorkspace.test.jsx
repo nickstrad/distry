@@ -19,10 +19,8 @@ afterEach(() => {
 
 describe('ProblemWorkspace', () => {
   it('renders markdown and switches editable template tabs', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse({
         slug: 'perfect-link',
         title: 'Perfect Point-to-Point Link',
         difficulty: 'easy',
@@ -36,8 +34,8 @@ describe('ProblemWorkspace', () => {
           'solution.go': 'package solution\n\nfunc Solve() {}\n',
         },
         run_config: { seeds: [1], timeout_seconds: 30 },
-      }),
-    })
+      }))
+      .mockResolvedValueOnce(jsonResponse({ error: 'solution not found' }, { ok: false, status: 404 }))
 
     render(
       <MemoryRouter initialEntries={['/problems/perfect-link']}>
@@ -47,14 +45,15 @@ describe('ProblemWorkspace', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByRole('heading', { name: 'Perfect Point-to-Point Link' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Goal' })).toBeInTheDocument()
+    await screen.findByRole('heading', { name: 'Perfect Point-to-Point Link' })
+    expect(await screen.findByRole('heading', { name: 'Goal' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled()
-    expect(screen.getByText('Changes are not saved yet')).toBeInTheDocument()
+    expect(screen.getByText('Saved')).toBeInTheDocument()
 
     const helperEditor = screen.getByLabelText('editor-helper.go')
     expect(helperEditor).toHaveValue('package solution\n\nfunc helper() {}\n')
     fireEvent.change(helperEditor, { target: { value: 'package solution\n\nfunc changed() {}\n' } })
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('tab', { name: 'solution.go' }))
     expect(screen.getByLabelText('editor-solution.go')).toHaveValue('package solution\n\nfunc Solve() {}\n')
@@ -62,4 +61,63 @@ describe('ProblemWorkspace', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'helper.go' }))
     expect(screen.getByLabelText('editor-helper.go')).toHaveValue('package solution\n\nfunc changed() {}\n')
   })
+
+  it('loads a saved solution and saves edits', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse({
+        slug: 'perfect-link',
+        title: 'Perfect Point-to-Point Link',
+        difficulty: 'easy',
+        language: 'go',
+        tags: ['links'],
+        order: 1,
+        entrypoint: 'solution.go',
+        description_md: 'Solve it.',
+        templates: {
+          'solution.go': 'package solution\n\nfunc Solve() {}\n',
+        },
+        run_config: { seeds: [1], timeout_seconds: 30 },
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        problem_slug: 'perfect-link',
+        files: {
+          'solution.go': 'package solution\n\nfunc Saved() {}\n',
+        },
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        problem_slug: 'perfect-link',
+        files: {
+          'solution.go': 'package solution\n\nfunc Changed() {}\n',
+        },
+      }))
+
+    render(
+      <MemoryRouter initialEntries={['/problems/perfect-link']}>
+        <Routes>
+          <Route path="/problems/:slug" element={<ProblemWorkspace />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    const editor = await screen.findByLabelText('editor-solution.go')
+    expect(editor).toHaveValue('package solution\n\nfunc Saved() {}\n')
+
+    fireEvent.change(editor, { target: { value: 'package solution\n\nfunc Changed() {}\n' } })
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(fetch).toHaveBeenLastCalledWith('/api/problems/perfect-link/solution', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files: { 'solution.go': 'package solution\n\nfunc Changed() {}\n' } }),
+    })
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+  })
 })
+
+function jsonResponse(body, { ok = true, status = 200 } = {}) {
+  return {
+    ok,
+    status,
+    json: async () => body,
+  }
+}

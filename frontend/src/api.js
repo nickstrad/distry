@@ -6,10 +6,22 @@ export class ApiError extends Error {
   }
 }
 
-export async function api(path, options) {
-  const res = await fetch(path, options)
+export async function api(path, options = {}) {
+  return requestJSON(path, options)
+}
+
+export async function apiMaybe(path, options = {}) {
+  return requestJSON(path, { ...options, allowNotFound: true })
+}
+
+async function requestJSON(path, { allowNotFound = false, ...options } = {}) {
+  const fetchOptions = Object.keys(options).length ? options : undefined
+  const res = await fetch(path, fetchOptions)
   const data = await res.json().catch(() => null)
 
+  if (allowNotFound && res.status === 404) {
+    return null
+  }
   if (res.status === 401 && window.location.pathname !== '/login') {
     window.location.assign('/login')
   }

@@ -398,6 +398,20 @@ input:focus {
   gap: 12px;
 }
 
+.save-state {
+  color: #1f6f68;
+  white-space: nowrap;
+}
+
+.save-state.dirty {
+  color: #8a5900;
+}
+
+.solution-error {
+  border-radius: 0;
+  border-width: 0 0 1px;
+}
+
 .editor-frame {
   min-height: 420px;
 }
