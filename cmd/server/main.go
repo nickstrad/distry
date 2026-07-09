@@ -15,8 +15,10 @@ import (
 	"distry/internal/config"
 	"distry/internal/db"
 	"distry/internal/problems"
+	"distry/internal/runner"
 	"distry/internal/server"
 	"distry/internal/solutions"
+	"distry/internal/submissions"
 	"distry/internal/web"
 )
 
@@ -51,8 +53,17 @@ func main() {
 	log.Printf("synced %d problems", len(loadedProblems))
 
 	authService := auth.NewService(auth.NewPGUserRepo(pool), auth.NewPGSessionRepo(pool))
-	solutionService := solutions.NewService(solutions.NewPGRepo(pool), problemRepo)
-	app := server.New(pool, authService, problemRepo, solutionService, web.FrontendHandler())
+	solutionRepo := solutions.NewPGRepo(pool)
+	solutionService := solutions.NewService(solutionRepo, problemRepo)
+	submissionService := submissions.NewService(
+		submissions.NewPGRepo(pool),
+		solutionRepo,
+		problemRepo,
+		map[string]submissions.LanguageRunner{"go": runner.NewGoRunner(repoRoot())},
+		1,
+	)
+	submissionService.Start(ctx)
+	app := server.New(pool, authService, problemRepo, solutionService, submissionService, web.FrontendHandler())
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           app.Routes(),
@@ -79,4 +90,11 @@ func problemDir() string {
 		return dir
 	}
 	return "problems"
+}
+
+func repoRoot() string {
+	if dir := strings.TrimSpace(os.Getenv("DISTRY_REPO_ROOT")); dir != "" {
+		return dir
+	}
+	return "."
 }
