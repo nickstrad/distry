@@ -1,5 +1,7 @@
 # 10 — Problem 1 (easy): Perfect Point-to-Point Link
 
+**Status:** Done.
+
 **Depends on:** 07 (authorable & unit-testable immediately); 08+09 for platform E2E.
 **Independent of** plans 11 and 12.
 **Source:** Cachin/Guerraoui/Rodrigues, *Introduction to Reliable and Secure Distributed
