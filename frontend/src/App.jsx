@@ -4,10 +4,21 @@ import './styles.css'
 
 const AuthContext = createContext(null)
 
-async function api(path, options) {
+async function api(path, options = {}) {
+  return requestJSON(path, options)
+}
+
+async function apiMaybe(path, options = {}) {
+  return requestJSON(path, { ...options, allowNotFound: true })
+}
+
+async function requestJSON(path, { allowNotFound = false, ...options } = {}) {
   const res = await fetch(path, options)
   const data = await res.json().catch(() => null)
 
+  if (allowNotFound && res.status === 404) {
+    return null
+  }
   if (!res.ok) {
     throw new Error(data?.error || 'Something went wrong')
   }
@@ -193,10 +204,222 @@ function Shell() {
           </button>
         </div>
       </header>
-      <section className="workspace">
-        <h2>Ready</h2>
-        <p>Backend health is available at <code>/api/health</code>.</p>
-      </section>
+      <Workspace />
     </main>
   )
+}
+
+function Workspace() {
+  const [problems, setProblems] = useState([])
+  const [selectedSlug, setSelectedSlug] = useState('')
+  const [problem, setProblem] = useState(null)
+  const [error, setError] = useState('')
+  const solution = useSolutionFiles(problem)
+
+  useEffect(() => {
+    let active = true
+    api('/api/problems')
+      .then((items) => {
+        if (!active) return
+        setProblems(items)
+        setSelectedSlug((current) => current || items[0]?.slug || '')
+      })
+      .catch((err) => {
+        if (active) setError(err.message)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedSlug) return undefined
+    let active = true
+    setError('')
+    api(`/api/problems/${selectedSlug}`)
+      .then((data) => {
+        if (active) setProblem(data)
+      })
+      .catch((err) => {
+        if (active) setError(err.message)
+      })
+    return () => {
+      active = false
+    }
+  }, [selectedSlug])
+
+  function selectProblem(slug) {
+    if (solution.dirty && !window.confirm('Discard unsaved changes?')) {
+      return
+    }
+    setSelectedSlug(slug)
+  }
+
+  return (
+    <section className="workspace">
+      <aside className="problem-list" aria-label="Problems">
+        {problems.map((item) => (
+          <button
+            className={item.slug === selectedSlug ? 'problem-link active' : 'problem-link'}
+            key={item.slug}
+            type="button"
+            onClick={() => selectProblem(item.slug)}
+          >
+            <span>{item.title}</span>
+            <small>{item.difficulty}</small>
+          </button>
+        ))}
+      </aside>
+      <section className="problem-panel">
+        {error && <p className="error">{error}</p>}
+        {!problem && !error && <p className="muted">Loading...</p>}
+        {problem && <ProblemEditor problem={problem} solution={solution} />}
+      </section>
+    </section>
+  )
+}
+
+function ProblemEditor({ problem, solution }) {
+  return (
+    <>
+      <div className="problem-heading">
+        <div>
+          <h2>{problem.title}</h2>
+          <p>
+            {problem.language} / {problem.difficulty}
+          </p>
+        </div>
+        <div className="actions">
+          <span className={solution.dirty ? 'save-state dirty' : 'save-state'}>
+            {saveLabel(solution)}
+          </span>
+          <button type="button" onClick={solution.reset} disabled={solution.busy}>
+            Reset
+          </button>
+          <button type="button" onClick={solution.save} disabled={!solution.dirty || solution.busy}>
+            Save
+          </button>
+        </div>
+      </div>
+      <div className="description">{problem.description_md}</div>
+      <div className="editor-stack">
+        {Object.entries(solution.files).map(([name, contents]) => (
+          <label className="file-editor" key={name}>
+            <span>{name}</span>
+            <textarea
+              spellCheck="false"
+              value={contents}
+              onChange={(event) => solution.updateFile(name, event.target.value)}
+            />
+          </label>
+        ))}
+      </div>
+      {solution.error && <p className="error">{solution.error}</p>}
+    </>
+  )
+}
+
+function saveLabel(solution) {
+  if (solution.saving) return 'Saving...'
+  if (solution.dirty) return 'Unsaved changes'
+  return 'Saved'
+}
+
+function useSolutionFiles(problem) {
+  const [files, setFiles] = useState({})
+  const [savedFiles, setSavedFiles] = useState({})
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!problem) return undefined
+    let active = true
+    setLoading(true)
+    setError('')
+    apiMaybe(`/api/problems/${problem.slug}/solution`)
+      .then((solution) => {
+        if (!active) return
+        const nextFiles = solution?.files || problem.templates
+        setFiles(nextFiles)
+        setSavedFiles(nextFiles)
+      })
+      .catch((err) => {
+        if (active) setError(err.message)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [problem])
+
+  const dirty = useMemo(() => JSON.stringify(files) !== JSON.stringify(savedFiles), [files, savedFiles])
+
+  useEffect(() => {
+    function beforeUnload(event) {
+      if (!dirty) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', beforeUnload)
+    return () => window.removeEventListener('beforeunload', beforeUnload)
+  }, [dirty])
+
+  useEffect(() => {
+    function onKeyDown(event) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault()
+        if (dirty && !saving && problem) {
+          save()
+        }
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [dirty, files, problem, saving])
+
+  function updateFile(name, contents) {
+    setFiles((current) => ({ ...current, [name]: contents }))
+  }
+
+  async function save() {
+    await persist(files)
+  }
+
+  async function reset() {
+    await persist(problem.templates, { updateEditorFirst: true })
+  }
+
+  async function persist(nextFiles, { updateEditorFirst = false } = {}) {
+    if (updateEditorFirst) setFiles(nextFiles)
+    setSaving(true)
+    setError('')
+    try {
+      const solution = await api(`/api/problems/${problem.slug}/solution`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: nextFiles }),
+      })
+      setSavedFiles(solution.files)
+      setFiles(solution.files)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return {
+    busy: loading || saving,
+    dirty,
+    error,
+    files,
+    loading,
+    reset,
+    save,
+    saving,
+    updateFile,
+  }
 }

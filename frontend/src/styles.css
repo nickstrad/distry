@@ -18,7 +18,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -144,13 +145,149 @@ input:focus {
   background: white;
   border: 1px solid #d9e0ea;
   border-radius: 8px;
-  padding: 28px;
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  min-height: 640px;
+  overflow: hidden;
 }
 
 code {
   background: #eef2f7;
   border-radius: 4px;
   padding: 2px 5px;
+}
+
+.problem-list {
+  background: #f9fbfe;
+  border-right: 1px solid #d9e0ea;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+}
+
+.problem-link {
+  align-items: flex-start;
+  background: transparent;
+  border-radius: 6px;
+  color: #1c2430;
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  min-height: 58px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.problem-link:hover,
+.problem-link.active {
+  background: #e8f1ef;
+}
+
+.problem-link small {
+  color: #607086;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.problem-panel {
+  display: grid;
+  gap: 18px;
+  grid-template-rows: auto auto 1fr auto;
+  min-width: 0;
+  padding: 24px;
+}
+
+.problem-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.problem-heading h2,
+.problem-heading p {
+  margin: 0;
+}
+
+.problem-heading p,
+.muted {
+  color: #607086;
+}
+
+.actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.actions button {
+  min-height: 38px;
+  padding: 0 14px;
+}
+
+.actions button:first-of-type {
+  background: #eef2f7;
+  color: #1c2430;
+}
+
+.save-state {
+  color: #256f5d;
+  font-size: 0.9rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.save-state.dirty {
+  color: #9a5b10;
+}
+
+.description {
+  background: #f9fbfe;
+  border: 1px solid #d9e0ea;
+  border-radius: 6px;
+  color: #425066;
+  max-height: 150px;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+}
+
+.editor-stack {
+  display: grid;
+  gap: 14px;
+  min-height: 0;
+}
+
+.file-editor {
+  color: #1c2430;
+  display: grid;
+  font-size: 0.9rem;
+  font-weight: 800;
+  gap: 8px;
+  min-height: 0;
+}
+
+.file-editor textarea {
+  background: #111827;
+  border: 1px solid #263244;
+  border-radius: 6px;
+  color: #e5edf7;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  min-height: 330px;
+  outline: none;
+  padding: 14px;
+  resize: vertical;
+  tab-size: 2;
+  width: 100%;
+}
+
+.file-editor textarea:focus {
+  border-color: #46a78f;
+  box-shadow: 0 0 0 3px rgba(37, 111, 93, 0.22);
 }
 
 @media (max-width: 560px) {
@@ -163,5 +300,24 @@ code {
   .account {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+    padding: 0;
+  }
+
+  .problem-list {
+    border-bottom: 1px solid #d9e0ea;
+    border-right: 0;
+  }
+
+  .problem-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .actions {
+    justify-content: flex-start;
   }
 }

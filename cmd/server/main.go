@@ -16,6 +16,7 @@ import (
 	"distry/internal/db"
 	"distry/internal/problems"
 	"distry/internal/server"
+	"distry/internal/solutions"
 	"distry/internal/web"
 )
 
@@ -50,7 +51,8 @@ func main() {
 	log.Printf("synced %d problems", len(loadedProblems))
 
 	authService := auth.NewService(auth.NewPGUserRepo(pool), auth.NewPGSessionRepo(pool))
-	app := server.New(pool, authService, problemRepo, web.FrontendHandler())
+	solutionService := solutions.NewService(solutions.NewPGRepo(pool), problemRepo)
+	app := server.New(pool, authService, problemRepo, solutionService, web.FrontendHandler())
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           app.Routes(),
