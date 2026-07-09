@@ -3,6 +3,12 @@
 **Depends on:** 06.
 **Enables:** 08 (the runner executes harnesses), 10–12 (each problem authors one).
 
+**Status:** Done.
+
+Implemented `pkg/simtest` with a probe ledger, cluster views, reusable safety and
+liveness checkers, versioned JSON reports, simulator stats, and deterministic toy harness
+tests. Added `docs/problem-authoring.md` as the short harness author guide.
+
 ## Goal
 
 A small framework on top of `pkg/sim` that (a) expresses safety and liveness properties as
