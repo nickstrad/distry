@@ -1,5 +1,7 @@
 # 11 — Problem 2 (easy): LCR Leader Election on a Ring
 
+**Status:** Done.
+
 **Depends on:** 07; 08+09 for platform E2E. Independent of plans 10 and 12.
 **Source:** Lynch, *Distributed Algorithms*, ch. 3.3 (LeLann–Chang–Roberts). Follow
 `docs/problem-authoring.md`.

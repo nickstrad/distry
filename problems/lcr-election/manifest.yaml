@@ -1,0 +1,12 @@
+slug: lcr-election
+title: LCR Leader Election
+difficulty: easy
+language: go
+tags: [leader-election, rings]
+order: 2
+entrypoint: solution.go
+templates:
+  - solution.go
+runs:
+  seeds: [1, 2, 3, 4, 5]
+  timeout_seconds: 30
