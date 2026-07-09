@@ -27,8 +27,13 @@ type Deps struct {
 
 type NewNodeFunc func(Deps) sim.Node
 
-func Run(seed int64, newNode NewNodeFunc) *simtest.Report {
+type RunOptions struct {
+	FullTrace bool
+}
+
+func Run(seed int64, newNode NewNodeFunc, opts ...RunOptions) *simtest.Report {
 	probe := simtest.NewProbe()
+	options := runOptions(opts)
 	return simtest.Execute(simtest.ExecuteConfig{
 		Sim: sim.Config{
 			Seed:      seed,
@@ -45,12 +50,20 @@ func Run(seed int64, newNode NewNodeFunc) *simtest.Report {
 		Liveness: []simtest.LivenessChecker{
 			allDeliveredToReceiver{},
 		},
+		FullTrace: options.FullTrace,
 	}, func(id sim.NodeID) sim.Node {
 		return &scriptedNode{
 			inner: newNode(Deps{Probe: probe}),
 			probe: probe,
 		}
 	})
+}
+
+func runOptions(opts []RunOptions) RunOptions {
+	if len(opts) == 0 {
+		return RunOptions{}
+	}
+	return opts[0]
 }
 
 type scriptedNode struct {

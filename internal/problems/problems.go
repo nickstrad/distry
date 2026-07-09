@@ -51,10 +51,15 @@ type Summary struct {
 	Difficulty string   `json:"difficulty"`
 	Tags       []string `json:"tags"`
 	Order      int      `json:"order"`
+	Solved     bool     `json:"solved,omitempty"`
 }
 
 type Repo interface {
 	Upsert(context.Context, Problem) error
 	List(context.Context) ([]Summary, error)
 	Get(context.Context, string) (Problem, error)
+}
+
+type SolvedLister interface {
+	ListSolved(context.Context, string) (map[string]bool, error)
 }

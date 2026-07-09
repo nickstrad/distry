@@ -1,11 +1,10 @@
 FRONTEND := npm --prefix frontend
 GO_TEST := go test
 
-.PHONY: dev test test-integration examples frontend-test frontend-build migrate
+.PHONY: dev test test-integration e2e examples frontend-test frontend-build migrate
 
 dev:
-	$(FRONTEND) run build
-	go run ./cmd/server
+	./scripts/dev.sh
 
 migrate:
 	go run ./cmd/migrate up
@@ -17,6 +16,9 @@ test:
 
 test-integration:
 	$(GO_TEST) -tags=integration ./...
+
+e2e:
+	./e2e/full-flow.sh
 
 examples:
 	go build ./examples/...

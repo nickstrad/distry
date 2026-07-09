@@ -55,6 +55,7 @@ func (s *Server) Routes() chi.Router {
 		r.Post("/api/problems/{slug}/run", s.runProblem)
 		r.Get("/api/problems/{slug}/submissions", s.listSubmissions)
 		r.Get("/api/submissions/{id}", s.getSubmission)
+		r.Post("/api/submissions/{id}/replay", s.replaySubmission)
 	})
 	r.Get("/api/problems", s.listProblems)
 	r.Get("/api/problems/{slug}", s.getProblem)
@@ -72,12 +73,37 @@ func (s *Server) runProblem(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	submission, err := submissionService.Run(r.Context(), user.ID, solutionSlug(r))
+	var req runRequest
+	if !decodeOptionalJSON(w, r, &req) {
+		return
+	}
+	submission, err := submissionService.Run(r.Context(), user.ID, solutionSlug(r), req.Seeds)
 	if err != nil {
 		writeSubmissionError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]string{"submissionID": submission.ID})
+}
+
+func (s *Server) replaySubmission(w http.ResponseWriter, r *http.Request) {
+	submissionService, ok := s.submissionService(w)
+	if !ok {
+		return
+	}
+	user, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
+	var req replayRequest
+	if !decodeRequiredJSON(w, r, &req) {
+		return
+	}
+	report, err := submissionService.Replay(r.Context(), user.ID, chi.URLParam(r, "id"), req.Seed)
+	if err != nil {
+		writeSubmissionError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, report)
 }
 
 func (s *Server) getSubmission(w http.ResponseWriter, r *http.Request) {
@@ -141,8 +167,7 @@ func (s *Server) putSolution(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req solutionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+	if !decodeRequiredJSON(w, r, &req) {
 		return
 	}
 	solution := solutions.Solution{
@@ -164,6 +189,14 @@ func (s *Server) putSolution(w http.ResponseWriter, r *http.Request) {
 
 type solutionRequest struct {
 	Files map[string]string `json:"files"`
+}
+
+type runRequest struct {
+	Seeds []int `json:"seeds"`
+}
+
+type replayRequest struct {
+	Seed int64 `json:"seed"`
 }
 
 func (s *Server) savedSolution(ctx context.Context, userID string, fallback solutions.Solution) (solutions.Solution, error) {
@@ -211,6 +244,10 @@ func writeSubmissionError(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "submission already running"})
 	case errors.Is(err, submissions.ErrNoSavedSolution):
 		writeJSON(w, http.StatusPreconditionRequired, map[string]string{"error": "save a solution before running"})
+	case errors.Is(err, submissions.ErrInvalidSeeds):
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+	case errors.Is(err, submissions.ErrNotFound):
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "submission not found"})
 	case errors.Is(err, problems.ErrNotFound):
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "problem not found"})
 	case errors.Is(err, submissions.ErrUnsupported):
@@ -238,7 +275,28 @@ func (s *Server) listProblems(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list problems"})
 		return
 	}
+	if user, ok := s.maybeCurrentUser(r); ok {
+		if lister, ok := s.problemRepo.(problems.SolvedLister); ok {
+			solved, err := lister.ListSolved(r.Context(), user.ID)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list problems"})
+				return
+			}
+			for i := range summaries {
+				summaries[i].Solved = solved[summaries[i].Slug]
+			}
+		}
+	}
 	writeJSON(w, http.StatusOK, summaries)
+}
+
+func (s *Server) maybeCurrentUser(r *http.Request) (auth.User, bool) {
+	cookie, err := r.Cookie(auth.CookieName)
+	if err != nil || s.auth == nil {
+		return auth.User{}, false
+	}
+	user, err := s.auth.Authenticate(r.Context(), cookie.Value)
+	return user, err == nil
 }
 
 func (s *Server) getProblem(w http.ResponseWriter, r *http.Request) {
@@ -258,4 +316,19 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(body)
+}
+
+func decodeOptionalJSON(w http.ResponseWriter, r *http.Request, dest any) bool {
+	if r.ContentLength == 0 {
+		return true
+	}
+	return decodeRequiredJSON(w, r, dest)
+}
+
+func decodeRequiredJSON(w http.ResponseWriter, r *http.Request, dest any) bool {
+	if err := json.NewDecoder(r.Body).Decode(dest); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+		return false
+	}
+	return true
 }

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import Editor from "../components/Editor.jsx";
 import Markdown from "../components/Markdown.jsx";
@@ -68,6 +69,7 @@ export default function ProblemWorkspace() {
           loadingHistory={runs.loadingHistory}
           loadingSubmission={runs.loadingSubmission}
           onSelectSubmission={runs.selectSubmission}
+          onReplay={runs.replay}
           submission={runs.submission}
         />
       </section>
@@ -76,7 +78,9 @@ export default function ProblemWorkspace() {
 }
 
 function CodeToolbar({ runs, solution }) {
+  const [seedText, setSeedText] = useState("");
   const runDisabled = solution.busy || runs.running;
+  const seeds = parseSeeds(seedText);
   return (
     <div className="code-toolbar">
       <FileTabs
@@ -103,12 +107,33 @@ function CodeToolbar({ runs, solution }) {
         >
           Save
         </Button>
-        <Button type="button" onClick={runs.run} disabled={runDisabled}>
+        <input
+          aria-label="Seeds"
+          className="seed-input"
+          inputMode="numeric"
+          placeholder="Seeds"
+          value={seedText}
+          onChange={(event) => setSeedText(event.target.value)}
+          disabled={runDisabled}
+        />
+        <Button
+          type="button"
+          onClick={() => runs.run(seeds)}
+          disabled={runDisabled || seeds === null}
+        >
           {runs.running ? "Running..." : "Run"}
         </Button>
       </div>
     </div>
   );
+}
+
+function parseSeeds(value) {
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+  const seeds = trimmed.split(/[,\s]+/).map((item) => Number(item));
+  if (seeds.some((seed) => !Number.isInteger(seed) || seed < 0)) return null;
+  return seeds;
 }
 
 function saveLabel(solution) {

@@ -289,7 +289,7 @@ form {
   color: #17202a;
   display: grid;
   gap: 18px;
-  grid-template-columns: 54px minmax(0, 1fr) auto;
+  grid-template-columns: 54px minmax(0, 1fr) auto auto;
   min-height: 86px;
   padding: 18px 22px;
   text-decoration: none;
@@ -318,6 +318,13 @@ form {
 .problem-title {
   font-size: 1.15rem;
   font-weight: 800;
+}
+
+.problem-status {
+  color: #1f7a55;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: right;
 }
 
 .tag-list,
@@ -452,6 +459,17 @@ form {
   flex: 0 0 auto;
   font-size: 0.84rem;
   gap: 10px;
+}
+
+.seed-input {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #17202a;
+  font: inherit;
+  min-height: 36px;
+  padding: 0 10px;
+  width: 112px;
 }
 
 .save-state {
@@ -624,6 +642,17 @@ form {
   padding: 10px;
 }
 
+.replay-button {
+  justify-self: start;
+}
+
+.replay-result {
+  border-top: 1px solid #e1e6e8;
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+}
+
 .violation-list {
   display: grid;
   gap: 8px;
@@ -656,6 +685,17 @@ form {
   display: grid;
   gap: 8px;
   min-width: 0;
+}
+
+.trace-truncated {
+  background: #fff8e5;
+  border: 1px solid #ead18a;
+  border-radius: 8px;
+  color: #725400;
+  font-size: 0.86rem;
+  font-weight: 700;
+  margin: 0;
+  padding: 8px 10px;
 }
 
 .trace-filters {

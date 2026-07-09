@@ -34,6 +34,7 @@ type Report struct {
 	Violations []Violation      `json:"violations,omitempty"`
 	Stats      Stats            `json:"stats"`
 	Trace      []sim.TraceEvent `json:"trace,omitempty"`
+	Truncated  bool             `json:"truncated,omitempty"`
 }
 
 type Stats struct {

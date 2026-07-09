@@ -10,7 +10,9 @@ The normal loop is:
 6. Read each seed result in the results panel.
 7. Expand a failing seed, inspect the violation, and walk the trace around the pinned
    event.
-8. Re-run the same solution until every configured seed passes.
+8. Click **Replay** on a failed seed when you want to rerun that exact historical
+   submission snapshot with a full trace.
+9. Re-run the same solution until every configured seed passes.
 
 ## Reading A Failure
 
@@ -27,7 +29,12 @@ Use the trace table backwards from the pinned event:
 - Compare `node`, `peer`, `msgType`, and `detail` to understand causality.
 
 The same code, seed, and problem configuration reproduce the same trace. If seed `3`
-fails once, seed `3` should fail the same way until your code changes.
+fails once, seed `3` should fail the same way until your code changes. Replay uses the
+files stored with the selected submission, not your current editor draft, so it is safe to
+debug old results after making new edits.
+
+Very large traces are capped before storage. When this happens, the UI shows a truncated
+trace notice; the seed, violation, and early event context are still preserved.
 
 ## Local Unit Tests
 
@@ -62,5 +69,7 @@ A seed controls virtual network delays, drops, duplication, and every node's sco
 source. The simulator also uses virtual time, so wall-clock speed does not affect event
 order.
 
-Use custom or repeated seed runs when a failure is narrow: keep the failing seed fixed,
-add local tests for the behavior, then re-run the platform problem after each fix.
+Use custom or repeated seed runs when a failure is narrow: type one or more seeds in the
+input next to **Run**, separated by commas or spaces, such as `3` or `3, 8, 13`. Custom
+runs accept 1-20 non-negative seeds. Keep the failing seed fixed, add local tests for the
+behavior, then re-run the platform problem after each fix.

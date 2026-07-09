@@ -26,9 +26,14 @@ type Deps struct {
 
 type NewNodeFunc func(Deps) sim.Node
 
-func Run(seed int64, newNode NewNodeFunc) *simtest.Report {
+type RunOptions struct {
+	FullTrace bool
+}
+
+func Run(seed int64, newNode NewNodeFunc, opts ...RunOptions) *simtest.Report {
 	probe := simtest.NewProbe()
 	nodeCount := ringSize(seed)
+	options := runOptions(opts)
 	return simtest.Execute(simtest.ExecuteConfig{
 		Sim:   simConfig(seed, nodeCount),
 		Probe: probe,
@@ -38,9 +43,17 @@ func Run(seed int64, newNode NewNodeFunc) *simtest.Report {
 		Liveness: []simtest.LivenessChecker{
 			allAnnounced{expected: maxNodeID(nodeCount)},
 		},
+		FullTrace: options.FullTrace,
 	}, func(id sim.NodeID) sim.Node {
 		return &scriptedNode{inner: newNode(depsFor(probe, id, nodeCount))}
 	})
+}
+
+func runOptions(opts []RunOptions) RunOptions {
+	if len(opts) == 0 {
+		return RunOptions{}
+	}
+	return opts[0]
 }
 
 func simConfig(seed int64, nodeCount int) sim.Config {

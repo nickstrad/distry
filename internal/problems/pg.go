@@ -86,6 +86,31 @@ func (r *PGRepo) List(ctx context.Context) ([]Summary, error) {
 	return summaries, nil
 }
 
+func (r *PGRepo) ListSolved(ctx context.Context, userID string) (map[string]bool, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT DISTINCT problem_slug
+		FROM submissions
+		WHERE user_id = $1 AND status = 'passed'
+	`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list solved problems: %w", err)
+	}
+	defer rows.Close()
+
+	solved := map[string]bool{}
+	for rows.Next() {
+		var slug string
+		if err := rows.Scan(&slug); err != nil {
+			return nil, fmt.Errorf("scan solved problem: %w", err)
+		}
+		solved[slug] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate solved problems: %w", err)
+	}
+	return solved, nil
+}
+
 func (r *PGRepo) Get(ctx context.Context, slug string) (Problem, error) {
 	var problem Problem
 	var tags []byte

@@ -67,6 +67,29 @@ func TestListProblems(t *testing.T) {
 	}
 }
 
+func TestListProblemsIncludesSolvedStatusForAuthenticatedUser(t *testing.T) {
+	rec := request(newTestServer(nil, map[string]problems.Problem{
+		"perfect-link": {
+			Slug:       "perfect-link",
+			Title:      "Perfect Point-to-Point Link",
+			Difficulty: "easy",
+			Tags:       []string{"links"},
+			Order:      1,
+		},
+	}), http.MethodGet, "/api/problems")
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	var got []problems.Summary
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || !got[0].Solved {
+		t.Fatalf("expected solved summary, got %+v", got)
+	}
+}
+
 func TestGetProblem(t *testing.T) {
 	rec := request(newTestServer(nil, map[string]problems.Problem{
 		"perfect-link": {
@@ -212,6 +235,66 @@ func TestRunProblemQueuesSubmission(t *testing.T) {
 	}
 }
 
+func TestRunProblemAcceptsCustomSeeds(t *testing.T) {
+	repo := newMemorySubmissionRepo()
+	problemRepo := fakeProblemRepo{problems: map[string]problems.Problem{
+		"perfect-link": {
+			Slug:      "perfect-link",
+			Language:  "go",
+			Templates: map[string]string{"solution.go": "package solution\n"},
+		},
+	}}
+	solutionRepo := newMemorySolutionRepo()
+	srv := New(
+		fakePinger{},
+		auth.NewService(&fakeUserRepo{}, &fakeSessionRepo{user: auth.User{ID: "user-a", Username: "ada"}}),
+		problemRepo,
+		solutions.NewService(solutionRepo, problemRepo),
+		submissions.NewService(repo, solutionRepo, problemRepo, map[string]submissions.LanguageRunner{"go": fakeLanguageRunner{}}, 1),
+		http.NotFoundHandler(),
+	)
+
+	_ = requestWithBody(srv, http.MethodPut, "/api/problems/perfect-link/solution", `{"files":{"solution.go":"package solution\n"}}`)
+	rec := requestWithBody(srv, http.MethodPost, "/api/problems/perfect-link/run", `{"seeds":[7,8]}`)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected run status 202, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if got := repo.first().Reports; len(got) != 2 || got[0].Seed != 7 || got[1].Seed != 8 {
+		t.Fatalf("expected queued custom seed reports, got %+v", got)
+	}
+}
+
+func TestReplaySubmission(t *testing.T) {
+	repo := newMemorySubmissionRepo()
+	repo.submissions["sub-a"] = submissions.Submission{
+		ID:          "sub-a",
+		UserID:      "user-a",
+		ProblemSlug: "perfect-link",
+		Files:       map[string]string{"solution.go": "package solution\n"},
+		Status:      submissions.StatusFailed,
+	}
+	srv := New(
+		fakePinger{},
+		auth.NewService(&fakeUserRepo{}, &fakeSessionRepo{user: auth.User{ID: "user-a", Username: "ada"}}),
+		fakeProblemRepo{problems: map[string]problems.Problem{"perfect-link": {Slug: "perfect-link", Language: "go"}}},
+		solutions.NewService(newMemorySolutionRepo(), fakeProblemRepo{}),
+		submissions.NewService(repo, newMemorySolutionRepo(), fakeProblemRepo{problems: map[string]problems.Problem{"perfect-link": {Slug: "perfect-link", Language: "go"}}}, map[string]submissions.LanguageRunner{"go": fakeLanguageRunner{}}, 1),
+		http.NotFoundHandler(),
+	)
+
+	rec := requestWithBody(srv, http.MethodPost, "/api/submissions/sub-a/replay", `{"seed":11}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected replay status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var got simtest.Report
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Seed != 11 {
+		t.Fatalf("expected replay seed 11, got %+v", got)
+	}
+}
+
 func TestGetSubmissionIsOwnerScoped(t *testing.T) {
 	repo := newMemorySubmissionRepo()
 	repo.submissions["sub-a"] = submissions.Submission{ID: "sub-a", UserID: "user-a", ProblemSlug: "perfect-link", Status: submissions.StatusPassed}
@@ -309,6 +392,14 @@ func (f fakeProblemRepo) List(context.Context) ([]problems.Summary, error) {
 	return summaries, nil
 }
 
+func (f fakeProblemRepo) ListSolved(context.Context, string) (map[string]bool, error) {
+	solved := map[string]bool{}
+	for slug := range f.problems {
+		solved[slug] = true
+	}
+	return solved, nil
+}
+
 func (f fakeProblemRepo) Get(_ context.Context, slug string) (problems.Problem, error) {
 	problem, ok := f.problems[slug]
 	if !ok {
@@ -348,7 +439,7 @@ func (fakeLanguageRunner) Compile(context.Context, submissions.Workspace) (submi
 	return submissions.CompileResult{}, nil
 }
 
-func (fakeLanguageRunner) RunSeed(_ context.Context, _ submissions.Workspace, seed int64) (simtest.Report, error) {
+func (fakeLanguageRunner) RunSeed(_ context.Context, _ submissions.Workspace, seed int64, _ submissions.RunSeedOptions) (simtest.Report, error) {
 	return simtest.Report{Version: simtest.ReportVersion, Seed: seed, Passed: true}, nil
 }
 
@@ -428,4 +519,13 @@ func (r *memorySubmissionRepo) Finish(_ context.Context, id string, status submi
 	submission.FinishedAt = &now
 	r.submissions[id] = submission
 	return nil
+}
+
+func (r *memorySubmissionRepo) first() submissions.Submission {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, submission := range r.submissions {
+		return submission
+	}
+	return submissions.Submission{}
 }
