@@ -7,12 +7,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"distry/internal/auth"
 	"distry/internal/problems"
 	"distry/internal/solutions"
+	"distry/internal/submissions"
+	"distry/pkg/simtest"
 )
 
 type fakePinger struct {
@@ -139,6 +142,7 @@ func TestSolutionIsScopedToAuthenticatedUser(t *testing.T) {
 		auth.NewService(&fakeUserRepo{}, &fakeSessionRepo{user: auth.User{ID: "user-a", Username: "ada"}}),
 		problemRepo,
 		solutions.NewService(store, problemRepo),
+		nil,
 		http.NotFoundHandler(),
 	)
 	srvB := New(
@@ -146,6 +150,7 @@ func TestSolutionIsScopedToAuthenticatedUser(t *testing.T) {
 		auth.NewService(&fakeUserRepo{}, &fakeSessionRepo{user: auth.User{ID: "user-b", Username: "grace"}}),
 		problemRepo,
 		solutions.NewService(store, problemRepo),
+		nil,
 		http.NotFoundHandler(),
 	)
 
@@ -167,8 +172,62 @@ func newTestServer(pingErr error, loaded map[string]problems.Problem) *Server {
 		auth.NewService(&fakeUserRepo{}, &fakeSessionRepo{user: auth.User{ID: "user-a", Username: "ada"}}),
 		problemRepo,
 		solutions.NewService(newMemorySolutionRepo(), problemRepo),
+		newNoopSubmissionService(problemRepo),
 		http.NotFoundHandler(),
 	)
+}
+
+func TestRunProblemQueuesSubmission(t *testing.T) {
+	problemRepo := fakeProblemRepo{problems: map[string]problems.Problem{
+		"perfect-link": {
+			Slug:      "perfect-link",
+			Language:  "go",
+			Templates: map[string]string{"solution.go": "package solution\n"},
+		},
+	}}
+	solutionRepo := newMemorySolutionRepo()
+	srv := New(
+		fakePinger{},
+		auth.NewService(&fakeUserRepo{}, &fakeSessionRepo{user: auth.User{ID: "user-a", Username: "ada"}}),
+		problemRepo,
+		solutions.NewService(solutionRepo, problemRepo),
+		submissions.NewService(newMemorySubmissionRepo(), solutionRepo, problemRepo, map[string]submissions.LanguageRunner{"go": fakeLanguageRunner{}}, 1),
+		http.NotFoundHandler(),
+	)
+
+	rec := requestWithBody(srv, http.MethodPut, "/api/problems/perfect-link/solution", `{"files":{"solution.go":"package solution\n"}}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected save status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	rec = request(srv, http.MethodPost, "/api/problems/perfect-link/run")
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("expected run status 202, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var got map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got["submissionID"] == "" {
+		t.Fatalf("expected submission id, got %+v", got)
+	}
+}
+
+func TestGetSubmissionIsOwnerScoped(t *testing.T) {
+	repo := newMemorySubmissionRepo()
+	repo.submissions["sub-a"] = submissions.Submission{ID: "sub-a", UserID: "user-a", ProblemSlug: "perfect-link", Status: submissions.StatusPassed}
+	srv := New(
+		fakePinger{},
+		auth.NewService(&fakeUserRepo{}, &fakeSessionRepo{user: auth.User{ID: "user-b", Username: "grace"}}),
+		fakeProblemRepo{},
+		solutions.NewService(newMemorySolutionRepo(), fakeProblemRepo{}),
+		submissions.NewService(repo, newMemorySolutionRepo(), fakeProblemRepo{}, map[string]submissions.LanguageRunner{"go": fakeLanguageRunner{}}, 1),
+		http.NotFoundHandler(),
+	)
+
+	rec := request(srv, http.MethodGet, "/api/submissions/sub-a")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d: %s", rec.Code, rec.Body.String())
+	}
 }
 
 func request(srv *Server, method, target string) *httptest.ResponseRecorder {
@@ -277,4 +336,96 @@ func (r *memorySolutionRepo) Get(_ context.Context, userID, slug string) (soluti
 		return solutions.Solution{}, solutions.ErrNotFound
 	}
 	return solution, nil
+}
+
+func newNoopSubmissionService(problemRepo fakeProblemRepo) *submissions.Service {
+	return submissions.NewService(newMemorySubmissionRepo(), newMemorySolutionRepo(), problemRepo, map[string]submissions.LanguageRunner{"go": fakeLanguageRunner{}}, 1)
+}
+
+type fakeLanguageRunner struct{}
+
+func (fakeLanguageRunner) Compile(context.Context, submissions.Workspace) (submissions.CompileResult, error) {
+	return submissions.CompileResult{}, nil
+}
+
+func (fakeLanguageRunner) RunSeed(_ context.Context, _ submissions.Workspace, seed int64) (simtest.Report, error) {
+	return simtest.Report{Version: simtest.ReportVersion, Seed: seed, Passed: true}, nil
+}
+
+type memorySubmissionRepo struct {
+	mu          sync.Mutex
+	next        int
+	submissions map[string]submissions.Submission
+}
+
+func newMemorySubmissionRepo() *memorySubmissionRepo {
+	return &memorySubmissionRepo{submissions: map[string]submissions.Submission{}}
+}
+
+func (r *memorySubmissionRepo) HasActive(_ context.Context, userID, slug string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, submission := range r.submissions {
+		if submission.UserID == userID && submission.ProblemSlug == slug {
+			switch submission.Status {
+			case submissions.StatusQueued, submissions.StatusCompiling, submissions.StatusRunning:
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func (r *memorySubmissionRepo) Insert(_ context.Context, submission submissions.Submission) (submissions.Submission, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.next++
+	submission.ID = string(rune('a' + r.next - 1))
+	submission.CreatedAt = time.Now()
+	r.submissions[submission.ID] = submission
+	return submission, nil
+}
+
+func (r *memorySubmissionRepo) Get(_ context.Context, userID, id string) (submissions.Submission, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	submission, ok := r.submissions[id]
+	if !ok || (userID != "" && submission.UserID != userID) {
+		return submissions.Submission{}, submissions.ErrNotFound
+	}
+	return submission, nil
+}
+
+func (r *memorySubmissionRepo) ListForProblem(_ context.Context, userID, slug string, _ int) ([]submissions.Submission, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var matches []submissions.Submission
+	for _, submission := range r.submissions {
+		if submission.UserID == userID && submission.ProblemSlug == slug {
+			matches = append(matches, submission)
+		}
+	}
+	return matches, nil
+}
+
+func (r *memorySubmissionRepo) UpdateStatus(_ context.Context, id string, status submissions.Status) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	submission := r.submissions[id]
+	submission.Status = status
+	r.submissions[id] = submission
+	return nil
+}
+
+func (r *memorySubmissionRepo) Finish(_ context.Context, id string, status submissions.Status, compileOutput string, reports []simtest.Report) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	submission := r.submissions[id]
+	now := time.Now()
+	submission.Status = status
+	submission.CompileOutput = compileOutput
+	submission.Reports = reports
+	submission.FinishedAt = &now
+	r.submissions[id] = submission
+	return nil
 }

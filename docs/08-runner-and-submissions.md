@@ -3,6 +3,14 @@
 **Depends on:** 03 (problems + harness files), 05 (saved solutions), 06+07 (sim/harness).
 **Enables:** 09.
 
+**Status:** Done.
+
+Implemented the submissions table/repository, async submission service, authenticated run
+and polling APIs, Go runner temp-workspace compilation with local module replacement,
+per-seed execution with timeouts, cleaned compile output, and focused service/server/runner
+tests. The current `perfect-link` harness is still the placeholder from plan 03, so
+end-to-end problem verdicts are unblocked for plan 10's real harness implementation.
+
 ## Goal
 
 `POST /api/problems/{slug}/run` takes the user's **saved** solution, compiles it with the

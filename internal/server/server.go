@@ -10,6 +10,7 @@ import (
 	"distry/internal/auth"
 	"distry/internal/problems"
 	"distry/internal/solutions"
+	"distry/internal/submissions"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -24,6 +25,7 @@ type Server struct {
 	auth        *auth.Service
 	problemRepo problems.Repo
 	solutions   *solutions.Service
+	submissions *submissions.Service
 	frontend    http.Handler
 }
 
@@ -32,8 +34,8 @@ type healthResponse struct {
 	DB     string `json:"db"`
 }
 
-func New(pool Pinger, authService *auth.Service, problemRepo problems.Repo, solutionService *solutions.Service, frontend http.Handler) *Server {
-	return &Server{pool: pool, auth: authService, problemRepo: problemRepo, solutions: solutionService, frontend: frontend}
+func New(pool Pinger, authService *auth.Service, problemRepo problems.Repo, solutionService *solutions.Service, submissionService *submissions.Service, frontend http.Handler) *Server {
+	return &Server{pool: pool, auth: authService, problemRepo: problemRepo, solutions: solutionService, submissions: submissionService, frontend: frontend}
 }
 
 func (s *Server) Routes() chi.Router {
@@ -50,12 +52,70 @@ func (s *Server) Routes() chi.Router {
 		r.Get("/api/me", authHandler.Me)
 		r.Get("/api/problems/{slug}/solution", s.getSolution)
 		r.Put("/api/problems/{slug}/solution", s.putSolution)
+		r.Post("/api/problems/{slug}/run", s.runProblem)
+		r.Get("/api/problems/{slug}/submissions", s.listSubmissions)
+		r.Get("/api/submissions/{id}", s.getSubmission)
 	})
 	r.Get("/api/problems", s.listProblems)
 	r.Get("/api/problems/{slug}", s.getProblem)
 	r.Handle("/*", s.frontend)
 
 	return r
+}
+
+func (s *Server) runProblem(w http.ResponseWriter, r *http.Request) {
+	submissionService, ok := s.submissionService(w)
+	if !ok {
+		return
+	}
+	user, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
+	submission, err := submissionService.Run(r.Context(), user.ID, solutionSlug(r))
+	if err != nil {
+		writeSubmissionError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{"submissionID": submission.ID})
+}
+
+func (s *Server) getSubmission(w http.ResponseWriter, r *http.Request) {
+	submissionService, ok := s.submissionService(w)
+	if !ok {
+		return
+	}
+	user, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
+	submission, err := submissionService.Get(r.Context(), user.ID, chi.URLParam(r, "id"))
+	if errors.Is(err, submissions.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "submission not found"})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to get submission"})
+		return
+	}
+	writeJSON(w, http.StatusOK, submission)
+}
+
+func (s *Server) listSubmissions(w http.ResponseWriter, r *http.Request) {
+	submissionService, ok := s.submissionService(w)
+	if !ok {
+		return
+	}
+	user, ok := currentUser(w, r)
+	if !ok {
+		return
+	}
+	history, err := submissionService.ListForProblem(r.Context(), user.ID, solutionSlug(r))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list submissions"})
+		return
+	}
+	writeJSON(w, http.StatusOK, history)
 }
 
 func (s *Server) getSolution(w http.ResponseWriter, r *http.Request) {
@@ -122,6 +182,14 @@ func currentUser(w http.ResponseWriter, r *http.Request) (auth.User, bool) {
 	return user, ok
 }
 
+func (s *Server) submissionService(w http.ResponseWriter) (*submissions.Service, bool) {
+	if s.submissions == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "submissions are not configured"})
+		return nil, false
+	}
+	return s.submissions, true
+}
+
 func solutionSlug(r *http.Request) string {
 	return chi.URLParam(r, "slug")
 }
@@ -134,6 +202,21 @@ func writeSolutionSaveError(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid solution files"})
 	default:
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save solution"})
+	}
+}
+
+func writeSubmissionError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, submissions.ErrActiveRun):
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "submission already running"})
+	case errors.Is(err, submissions.ErrNoSavedSolution):
+		writeJSON(w, http.StatusPreconditionRequired, map[string]string{"error": "save a solution before running"})
+	case errors.Is(err, problems.ErrNotFound):
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "problem not found"})
+	case errors.Is(err, submissions.ErrUnsupported):
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported language"})
+	default:
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to start submission"})
 	}
 }
 
