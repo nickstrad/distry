@@ -1,7 +1,8 @@
 import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { api } from './api.js'
-import { AuthProvider, useAuth } from './auth.jsx'
+import { AuthProvider, authUserQueryKey, useAuth } from './auth.jsx'
 import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { Input } from './components/ui/input'
@@ -50,7 +51,7 @@ function AuthPage({ mode }) {
   const { user, setUser, loading } = useAuth()
   const [form, setForm] = useState({ username: '', email: '', password: '' })
   const [error, setError] = useState('')
-  const [submitting, setSubmitting] = useState(false)
+  const authMutation = useAuthMutation({ isSignup, setError, setUser })
 
   if (!loading && user) {
     return <Navigate to="/problems" replace />
@@ -63,21 +64,9 @@ function AuthPage({ mode }) {
   async function submit(event) {
     event.preventDefault()
     setError('')
-    setSubmitting(true)
-
-    try {
-      const data = await api(`/api/auth/${isSignup ? 'signup' : 'login'}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(authPayload(form, isSignup)),
-      })
-      setUser(data)
-      navigate('/problems', { replace: true })
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setSubmitting(false)
-    }
+    authMutation.mutate(authPayload(form, isSignup), {
+      onSuccess: () => navigate('/problems', { replace: true }),
+    })
   }
 
   return (
@@ -87,51 +76,51 @@ function AuthPage({ mode }) {
           <CardTitle>{isSignup ? 'Create your account' : 'Welcome back'}</CardTitle>
         </CardHeader>
         <CardContent>
-        <form onSubmit={submit}>
-          {isSignup && (
+          <form onSubmit={submit}>
+            {isSignup && (
+              <Label className="form-label">
+                Username
+                <Input
+                  name="username"
+                  value={form.username}
+                  onChange={updateField}
+                  autoComplete="username"
+                  required
+                />
+              </Label>
+            )}
             <Label className="form-label">
-              Username
+              Email
               <Input
-                name="username"
-                value={form.username}
+                name="email"
+                type="email"
+                value={form.email}
                 onChange={updateField}
-                autoComplete="username"
+                autoComplete="email"
                 required
               />
             </Label>
-          )}
-          <Label className="form-label">
-            Email
-            <Input
-              name="email"
-              type="email"
-              value={form.email}
-              onChange={updateField}
-              autoComplete="email"
-              required
-            />
-          </Label>
-          <Label className="form-label">
-            Password
-            <Input
-              name="password"
-              type="password"
-              value={form.password}
-              onChange={updateField}
-              autoComplete={isSignup ? 'new-password' : 'current-password'}
-              minLength={8}
-              required
-            />
-          </Label>
-          {error && <p className="error">{error}</p>}
-          <Button type="submit" disabled={submitting} size="lg">
-            {submitting ? 'Working...' : isSignup ? 'Sign up' : 'Log in'}
-          </Button>
-        </form>
-        <p className="switch">
-          {isSignup ? 'Already have an account?' : 'Need an account?'}{' '}
-          <Link to={isSignup ? '/login' : '/signup'}>{isSignup ? 'Log in' : 'Sign up'}</Link>
-        </p>
+            <Label className="form-label">
+              Password
+              <Input
+                name="password"
+                type="password"
+                value={form.password}
+                onChange={updateField}
+                autoComplete={isSignup ? 'new-password' : 'current-password'}
+                minLength={8}
+                required
+              />
+            </Label>
+            {error && <p className="error">{error}</p>}
+            <Button type="submit" disabled={authMutation.isPending} size="lg">
+              {authMutation.isPending ? 'Working...' : isSignup ? 'Sign up' : 'Log in'}
+            </Button>
+          </form>
+          <p className="switch">
+            {isSignup ? 'Already have an account?' : 'Need an account?'}{' '}
+            <Link to={isSignup ? '/login' : '/signup'}>{isSignup ? 'Log in' : 'Sign up'}</Link>
+          </p>
         </CardContent>
       </Card>
     </main>
@@ -142,14 +131,28 @@ function authPayload(form, isSignup) {
   return isSignup ? form : { email: form.email, password: form.password }
 }
 
+function useAuthMutation({ isSignup, setError, setUser }) {
+  return useMutation({
+    mutationFn: (payload) =>
+      api(`/api/auth/${isSignup ? 'signup' : 'login'}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: setUser,
+    onError: (err) => setError(err.message),
+  })
+}
+
 function Shell() {
   const { user, setUser } = useAuth()
   const navigate = useNavigate()
+  const logoutMutation = useLogoutMutation(setUser)
 
-  async function signOut() {
-    await fetch('/api/auth/logout', { method: 'POST' })
-    setUser(null)
-    navigate('/login', { replace: true })
+  function signOut() {
+    logoutMutation.mutate(undefined, {
+      onSettled: () => navigate('/login', { replace: true }),
+    })
   }
 
   return (
@@ -174,4 +177,16 @@ function Shell() {
       </Routes>
     </main>
   )
+}
+
+function useLogoutMutation(setUser) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => api('/api/auth/logout', { method: 'POST' }),
+    onSettled: () => {
+      queryClient.removeQueries({ queryKey: authUserQueryKey })
+      setUser(null)
+    },
+  })
 }

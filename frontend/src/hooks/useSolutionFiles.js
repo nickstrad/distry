@@ -1,69 +1,65 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, apiMaybe } from '../api.js'
 
 export function useSolutionFiles(problem) {
+  const queryClient = useQueryClient()
   const slug = problem?.slug
   const templateFiles = useMemo(() => problem?.templates || {}, [problem])
   const fileNames = useMemo(() => Object.keys(templateFiles).sort(), [templateFiles])
   const [files, setFiles] = useState({})
   const [savedFiles, setSavedFiles] = useState({})
   const [activeFile, setActiveFile] = useState('')
-  const [loading, setLoading] = useState(false)
   const [loadedSlug, setLoadedSlug] = useState('')
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const effectiveActiveFile = activeFile || fileNames[0] || ''
+  const { data: solution, error: loadError, isPending: loadingSolution } = useSolutionQuery(slug)
+  const {
+    mutateAsync: saveSolution,
+    isPending: saving,
+  } = useMutation({
+    mutationFn: (nextFiles) =>
+      api(solutionPath(slug), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: nextFiles }),
+      }),
+    onSuccess: (solution) => {
+      queryClient.setQueryData(solutionQueryKey(slug), solution)
+      replaceFiles(setFiles, setSavedFiles, solution.files)
+    },
+    onError: (err) => setError(err.message),
+  })
 
+  const effectiveActiveFile = activeFile || fileNames[0] || ''
   const dirty = useMemo(() => !sameFiles(files, savedFiles), [files, savedFiles])
+  const loading = loadingSolution || Boolean(slug && loadedSlug !== slug)
   const busy = loading || saving
 
   useEffect(() => {
-    if (!slug) return undefined
-
-    let active = true
-    setLoading(true)
+    if (!slug) return
     setLoadedSlug('')
     setError('')
     setActiveFile(fileNames[0] || '')
+  }, [slug, fileNames])
 
-    apiMaybe(solutionPath(slug))
-      .then((solution) => {
-        if (!active) return
-        replaceFiles(setFiles, setSavedFiles, solution?.files || templateFiles)
-        setLoadedSlug(slug)
-      })
-      .catch((err) => {
-        if (active) setError(err.message)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-
-    return () => {
-      active = false
+  useEffect(() => {
+    if (!slug || loadingSolution) return
+    if (loadError) {
+      setError(loadError.message)
+      return
     }
-  }, [slug, fileNames, templateFiles])
+    replaceFiles(setFiles, setSavedFiles, solution?.files || templateFiles)
+    setLoadedSlug(slug)
+  }, [slug, solution, loadError, loadingSolution, templateFiles])
 
   const persist = useCallback(
     async (nextFiles, { updateEditorFirst = false } = {}) => {
       if (!slug) return
       if (updateEditorFirst) setFiles(nextFiles)
-      setSaving(true)
       setError('')
-      try {
-        const solution = await api(solutionPath(slug), {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ files: nextFiles }),
-        })
-        replaceFiles(setFiles, setSavedFiles, solution.files)
-      } catch (err) {
-        setError(err.message)
-      } finally {
-        setSaving(false)
-      }
+      await saveSolution(nextFiles).catch(() => {})
     },
-    [slug],
+    [saveSolution, slug],
   )
 
   const save = useCallback(() => persist(files), [files, persist])
@@ -107,7 +103,7 @@ export function useSolutionFiles(problem) {
     fileNames,
     activeFile: effectiveActiveFile,
     activeContent: files[effectiveActiveFile] || '',
-    loading: loading || Boolean(slug && loadedSlug !== slug),
+    loading,
     reset,
     save,
     saving,
@@ -116,8 +112,20 @@ export function useSolutionFiles(problem) {
   }
 }
 
+function useSolutionQuery(slug) {
+  return useQuery({
+    queryKey: solutionQueryKey(slug),
+    queryFn: () => apiMaybe(solutionPath(slug)),
+    enabled: Boolean(slug),
+  })
+}
+
 function solutionPath(slug) {
   return `/api/problems/${slug}/solution`
+}
+
+function solutionQueryKey(slug) {
+  return ['solution', slug]
 }
 
 function replaceFiles(setFiles, setSavedFiles, nextFiles) {

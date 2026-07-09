@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { renderWithQueryClient } from '../../test/renderWithQueryClient.jsx'
 import ProblemList from '../ProblemList.jsx'
 
 afterEach(() => {
@@ -23,7 +24,7 @@ describe('ProblemList', () => {
       ],
     })
 
-    render(
+    renderWithQueryClient(
       <MemoryRouter>
         <ProblemList />
       </MemoryRouter>,

@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { renderWithQueryClient } from '../../test/renderWithQueryClient.jsx'
 import ProblemWorkspace from '../ProblemWorkspace.jsx'
 
 vi.mock('../../components/Editor.jsx', () => ({
@@ -37,7 +38,7 @@ describe('ProblemWorkspace', () => {
       }))
       .mockResolvedValueOnce(jsonResponse({ error: 'solution not found' }, { ok: false, status: 404 }))
 
-    render(
+    renderWithQueryClient(
       <MemoryRouter initialEntries={['/problems/perfect-link']}>
         <Routes>
           <Route path="/problems/:slug" element={<ProblemWorkspace />} />
@@ -91,7 +92,7 @@ describe('ProblemWorkspace', () => {
         },
       }))
 
-    render(
+    renderWithQueryClient(
       <MemoryRouter initialEntries={['/problems/perfect-link']}>
         <Routes>
           <Route path="/problems/:slug" element={<ProblemWorkspace />} />

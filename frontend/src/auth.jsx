@@ -1,34 +1,33 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useMemo } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './api.js'
 
 const AuthContext = createContext(null)
+export const authUserQueryKey = ['auth', 'me']
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const { user, loading } = useAuthenticatedUser()
 
-  useEffect(() => {
-    let active = true
-    api('/api/me')
-      .then((me) => {
-        if (active) setUser(me)
-      })
-      .catch(() => {
-        if (active) setUser(null)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [])
+  const setUser = useCallback((nextUser) => {
+    queryClient.setQueryData(authUserQueryKey, nextUser)
+  }, [queryClient])
 
-  const value = useMemo(() => ({ user, setUser, loading }), [user, loading])
+  const value = useMemo(() => ({ user, setUser, loading }), [user, setUser, loading])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
   return useContext(AuthContext)
+}
+
+function useAuthenticatedUser() {
+  const { data = null, isPending } = useQuery({
+    queryKey: authUserQueryKey,
+    queryFn: () => api('/api/me'),
+    throwOnError: false,
+  })
+
+  return { user: data, loading: isPending }
 }
