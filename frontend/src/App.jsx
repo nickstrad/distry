@@ -1,48 +1,10 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { api } from './api.js'
+import { AuthProvider, useAuth } from './auth.jsx'
+import ProblemList from './pages/ProblemList.jsx'
+import ProblemWorkspace from './pages/ProblemWorkspace.jsx'
 import './styles.css'
-
-const AuthContext = createContext(null)
-
-async function api(path, options) {
-  const res = await fetch(path, options)
-  const data = await res.json().catch(() => null)
-
-  if (!res.ok) {
-    throw new Error(data?.error || 'Something went wrong')
-  }
-  return data
-}
-
-function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let active = true
-    api('/api/me')
-      .then((me) => {
-        if (active) setUser(me)
-      })
-      .catch(() => {
-        if (active) setUser(null)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [])
-
-  const value = useMemo(() => ({ user, setUser, loading }), [user, loading])
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-
-function useAuth() {
-  return useContext(AuthContext)
-}
 
 export default function App() {
   return (
@@ -84,7 +46,7 @@ function AuthPage({ mode }) {
   const [submitting, setSubmitting] = useState(false)
 
   if (!loading && user) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/problems" replace />
   }
 
   function updateField(event) {
@@ -103,7 +65,7 @@ function AuthPage({ mode }) {
         body: JSON.stringify(authPayload(form, isSignup)),
       })
       setUser(data)
-      navigate('/', { replace: true })
+      navigate('/problems', { replace: true })
     } catch (err) {
       setError(err.message)
     } finally {
@@ -166,10 +128,7 @@ function AuthPage({ mode }) {
 }
 
 function authPayload(form, isSignup) {
-  if (isSignup) {
-    return form
-  }
-  return { email: form.email, password: form.password }
+  return isSignup ? form : { email: form.email, password: form.password }
 }
 
 function Shell() {
@@ -184,19 +143,24 @@ function Shell() {
 
   return (
     <main className="app-shell">
-      <header>
-        <h1>Distry</h1>
+      <header className="topbar">
+        <Link className="brand" to="/problems" aria-label="Distry problem list">
+          <span className="brand-mark">D</span>
+          <span>Distry</span>
+        </Link>
         <div className="account">
           <span>{user.username}</span>
-          <button type="button" onClick={signOut}>
+          <button type="button" className="ghost-button" onClick={signOut}>
             Sign out
           </button>
         </div>
       </header>
-      <section className="workspace">
-        <h2>Ready</h2>
-        <p>Backend health is available at <code>/api/health</code>.</p>
-      </section>
+      <Routes>
+        <Route path="/" element={<Navigate to="/problems" replace />} />
+        <Route path="/problems" element={<ProblemList />} />
+        <Route path="/problems/:slug" element={<ProblemWorkspace />} />
+        <Route path="*" element={<Navigate to="/problems" replace />} />
+      </Routes>
     </main>
   )
 }

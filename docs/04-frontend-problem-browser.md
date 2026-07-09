@@ -1,5 +1,6 @@
 # 04 — Frontend: problem list, problem detail, code editor (read-only slice)
 
+**Status:** Done.
 **Depends on:** 02 (auth shell + routing), 03 (problem API).
 **Enables:** 05 (editing/saving), 09 (run UI).
 
