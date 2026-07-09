@@ -23,7 +23,8 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, command string, args ...st
 	if err := goose.SetDialect("postgres"); err != nil {
 		return err
 	}
-	conn := stdlib.OpenDBFromPool(pool)
+
+	conn := stdlib.OpenDB(*pool.Config().ConnConfig)
 	defer conn.Close()
 
 	return goose.RunContext(ctx, command, conn, "migrations", args...)
