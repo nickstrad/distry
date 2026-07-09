@@ -1,27 +1,16 @@
-import { useEffect, useState } from 'react'
-import { api } from '../api.js'
-
-const initialResource = { data: null, loading: true, error: '' }
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../api.js";
 
 export function useApiResource(path) {
-  const [state, setState] = useState(initialResource)
+  const {
+    data = null,
+    error,
+    isPending,
+  } = useQuery({
+    queryKey: ["api", path],
+    queryFn: () => api(path),
+    enabled: Boolean(path),
+  });
 
-  useEffect(() => {
-    let active = true
-    setState(initialResource)
-
-    api(path)
-      .then((data) => {
-        if (active) setState({ data, loading: false, error: '' })
-      })
-      .catch((err) => {
-        if (active) setState({ data: null, loading: false, error: err.message })
-      })
-
-    return () => {
-      active = false
-    }
-  }, [path])
-
-  return state
+  return { data, loading: isPending, error: error?.message || "" };
 }
