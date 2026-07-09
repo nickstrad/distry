@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"distry/internal/config"
 	"distry/internal/db"
+	"distry/internal/problems"
 	"distry/internal/server"
 	"distry/internal/web"
 )
@@ -35,7 +37,18 @@ func main() {
 		log.Fatal(err)
 	}
 
-	app := server.New(pool, web.FrontendHandler())
+	problemRepo := problems.NewPGRepo(pool)
+	problemFS := os.DirFS(problemDir())
+	loadedProblems, err := problems.LoadDir(problemFS)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := problems.Sync(ctx, problemRepo, loadedProblems); err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("synced %d problems", len(loadedProblems))
+
+	app := server.New(pool, problemRepo, web.FrontendHandler())
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
 		Handler:           app.Routes(),
@@ -55,4 +68,11 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
+}
+
+func problemDir() string {
+	if dir := strings.TrimSpace(os.Getenv("DISTRY_PROBLEMS_DIR")); dir != "" {
+		return dir
+	}
+	return "problems"
 }

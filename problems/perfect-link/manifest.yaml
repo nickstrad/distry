@@ -1,0 +1,12 @@
+slug: perfect-link
+title: Perfect Point-to-Point Link
+difficulty: easy
+language: go
+tags: [links, retransmission]
+order: 1
+entrypoint: solution.go
+templates:
+  - solution.go
+runs:
+  seeds: [1, 2, 3, 4, 5]
+  timeout_seconds: 30
