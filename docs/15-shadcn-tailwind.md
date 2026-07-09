@@ -4,6 +4,12 @@
 run/results UI should be built on the component library from the start.
 **Enables:** faster, consistent frontend work for plans 09, 13, and future polish.
 
+**Status:** Done.
+
+Implemented Tailwind v4 through `@tailwindcss/vite`, TypeScript-ready Vite config,
+`@/*` aliases, shadcn/ui generated component source, and low-risk frontend integrations
+using local shadcn primitives. The frontend typecheck, build, and Vitest suite pass.
+
 ## Goal
 
 Install the full current shadcn/ui component set into `frontend/` and configure Tailwind
