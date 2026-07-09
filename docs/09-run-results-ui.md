@@ -2,6 +2,7 @@
 
 **Depends on:** 04, 05, 08.
 **Enables:** the MVP loop; plans 10–12 are validated through this UI.
+**Status:** Done.
 
 ## Goal
 
@@ -11,25 +12,25 @@ for failing seeds.
 
 ## Steps
 
-1. **Run flow**: enable the Run button (plan 04 placeholder). Click ⇒ save current files
+1. ✅ **Run flow**: enable the Run button (plan 04 placeholder). Click ⇒ save current files
    (reuse plan 05 PUT) ⇒ `POST /api/problems/:slug/run` ⇒ store submission id ⇒ poll
    `GET /api/submissions/:id` every ~1.5s until terminal. Disable Run while in flight
    (server 409 also handled gracefully).
-2. **Results panel** (bottom pane of the workspace, resizable):
+2. ✅ **Results panel** (bottom pane of the workspace, resizable):
    - Status line: queued → compiling → running → PASSED/FAILED/ERROR with timing.
    - `error`: compile output in a monospace block (this is the tight feedback loop —
      make it good).
    - Per-seed row: seed number, ✓/✗, stats (events, messages sent/dropped, virtual
      duration). Failed seeds expandable.
    - Violation card: checker name, message, "at event #Seq".
-3. **Trace viewer** (failing seeds): virtualized table of TraceEvents
+3. ✅ **Trace viewer** (failing seeds): virtualized table of TraceEvents
    (Seq | time | kind | node | peer | msg type | detail), color-coded by kind
    (send/deliver/drop/crash/log/…), filter by node and kind, and auto-scroll-to +
    highlight the violating event seq. Keep it a table — no graph rendering in MVP.
-4. **Submission history**: small list under the results panel from
+4. ✅ **Submission history**: small list under the results panel from
    `GET /api/problems/:slug/submissions`; clicking an old one loads its results
    (read-only). Show which seed set was used.
-5. **Empty/edge states**: no run yet; run while unsaved; session expired mid-poll (401 →
+5. ✅ **Empty/edge states**: no run yet; run while unsaved; session expired mid-poll (401 →
    login redirect preserving the return path).
 
 ## Testing notes
