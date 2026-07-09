@@ -141,6 +141,9 @@ func (s *Server) listSubmissions(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list submissions"})
 		return
 	}
+	if history == nil {
+		history = []submissions.Submission{}
+	}
 	writeJSON(w, http.StatusOK, history)
 }
 
