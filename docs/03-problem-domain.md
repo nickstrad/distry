@@ -3,6 +3,12 @@
 **Depends on:** 01. (No auth needed — problem list/detail can be public for MVP.)
 **Enables:** 04, 05, 08, 10–12.
 
+**Status:** Done.
+
+Implemented the problem manifest model and loader, database read model and sync path,
+list/detail repository and HTTP API, plus the initial `perfect-link` problem package with
+description, template, and hidden harness directory. Loader and handler tests are green.
+
 ## Goal
 
 Define how a problem is authored on disk, load problems into the DB at startup, and expose

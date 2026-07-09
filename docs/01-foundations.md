@@ -3,6 +3,12 @@
 **Depends on:** nothing.
 **Enables:** 02, 03 (and establishes the repo layout used by 06).
 
+**Status:** Done.
+
+Implemented server layout, typed config loading, pgx pool creation, embedded goose
+migrations with a manual migrate command, dependency-injected server routing, and the
+database-backed `/api/health` endpoint. The old demo API route was removed.
+
 ## Goal
 
 Restructure the scaffold into the target layout, add typed env config, a pgx connection

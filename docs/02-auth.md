@@ -3,6 +3,12 @@
 **Depends on:** 01.
 **Enables:** 04, 05, 08 (any authenticated feature).
 
+**Status:** Done.
+
+Implemented in-house email/password auth with bcrypt password hashing, user/session
+repositories, session cookies, signup/login/logout/me HTTP endpoints, auth middleware,
+and the login/signup frontend flow. Unit tests cover the service and middleware paths.
+
 ## Architecture
 
 Auth lives entirely in the Go server — no separate service. A small `users` table with

@@ -3,6 +3,13 @@
 **Depends on:** nothing (pure library; only assumes plan 01's repo layout).
 **Enables:** 07, 08, 10–12. Can be built fully in parallel with plans 02–05.
 
+**Status:** Done.
+
+Implemented `pkg/sim` as a pure deterministic discrete-event simulator with virtual time,
+seeded network delivery, drop/duplicate/partition behavior, timers, crash-stop faults,
+cutoffs, panic capture, structured traces, per-node state access, package docs, and high
+coverage tests.
+
 ## Goal
 
 A deterministic discrete-event simulator for message-passing distributed algorithms.
