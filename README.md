@@ -64,7 +64,24 @@ Start the app:
 make dev
 ```
 
-Open `http://localhost:8080`, sign up with an email and password, choose **Perfect
+This runs [mprocs](https://github.com/pvolok/mprocs), which starts the Vite dev
+server and the Go server together in a single terminal UI (one pane per process).
+Install it once with `npm install -g mprocs` (or `brew install mprocs`). Process
+definitions live in `mprocs.yaml`.
+
+Both processes hot-reload on save:
+
+- The frontend uses Vite's HMR out of the box.
+- The Go server runs under [air](https://github.com/air-verse/air), which rebuilds
+  and restarts it whenever a `.go` file changes (config in `.air.toml`). Install it
+  with `go install github.com/air-verse/air@latest`.
+
+In dev the Go server is built with the `dev` tag, so it only serves the API. Open the
+**Vite dev server** at `http://localhost:5173` — it serves the frontend with HMR and
+proxies `/api` to the Go backend on `:8080`. (The `:8080` URL is for production
+builds, where the Go server serves `frontend/dist` directly.)
+
+On that page, sign up with an email and password, choose **Perfect
 Point-to-Point Link**, edit `solution.go`, click **Save**, then click **Run**. Use the
 optional seed input next to **Run** to debug specific seeds, such as `7` or `7, 8`.
 On a failed seed, expand the row and click **Replay** to rerun that seed from the

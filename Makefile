@@ -4,7 +4,7 @@ GO_TEST := go test
 .PHONY: dev test test-integration e2e examples frontend-test frontend-build migrate
 
 dev:
-	./scripts/dev.sh
+	mprocs
 
 migrate:
 	go run ./cmd/migrate up

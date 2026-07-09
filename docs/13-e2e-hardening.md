@@ -25,8 +25,8 @@ problems, and fix the papercuts that block daily use.
    `harness/testdata/correct`) → run → assert `passed`; save a buggy one → assert `failed`
    with expected checker name. This is the regression gate for everything.
 4. **Papercuts** (timeboxed):
-   - `make dev` / one command to start Vite + Go server together (a small `dev.sh` or
-     Makefile target is enough).
+   - `make dev` / one command to start Vite + Go server together (via `mprocs`,
+     configured in `mprocs.yaml`).
    - README: setup from clean clone (env vars, goose migrations, npm install).
    - Problem list shows per-user solved status (`passed` submission exists) — one query,
      big UX win.
