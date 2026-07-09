@@ -54,6 +54,7 @@ describe("useRunResults", () => {
     expect(save).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledWith("/api/problems/perfect-link/run", {
       method: "POST",
+      headers: undefined,
     });
     expect(screen.getByText("queued")).toBeInTheDocument();
 
@@ -73,18 +74,46 @@ describe("useRunResults", () => {
     });
     expect(fetch.mock.calls).toHaveLength(callsAtTerminal);
   });
+
+  it("posts custom seeds when supplied", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(
+        jsonResponse({ submissionID: "sub-1" }, { status: 202 }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ id: "sub-1", status: "passed", reports: [] }),
+      )
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(jsonResponse([]));
+
+    render(<Harness dirty={false} />);
+    await act(flushPromises);
+
+    fireEvent.click(screen.getByRole("button", { name: "run custom" }));
+    await act(flushPromises);
+
+    expect(fetch).toHaveBeenCalledWith("/api/problems/perfect-link/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seeds: [7, 8] }),
+    });
+  });
 });
 
-function Harness({ save }) {
+function Harness({ dirty = true, save = vi.fn().mockResolvedValue({}) }) {
   const runs = useRunResults("perfect-link", {
     busy: false,
-    dirty: true,
+    dirty,
     save,
   });
   return (
     <>
       <button type="button" onClick={runs.run}>
         run
+      </button>
+      <button type="button" onClick={() => runs.run([7, 8])}>
+        run custom
       </button>
       <output>{runs.submission?.status || "none"}</output>
     </>

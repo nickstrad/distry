@@ -70,23 +70,41 @@ export function useRunResults(slug, solution) {
     return () => window.clearInterval(intervalID);
   }, [loadSubmission, runningID]);
 
-  const run = useCallback(async () => {
-    if (!slug || solution.busy || runningID) return;
+  const run = useCallback(
+    async (seeds = []) => {
+      if (!slug || solution.busy || runningID) return;
+      setError("");
+      try {
+        if (solution.dirty) {
+          await solution.save();
+        }
+        const started = await api(`/api/problems/${slug}/run`, {
+          method: "POST",
+          ...jsonBody({ seeds }, seeds.length > 0),
+        });
+        setRunningID(started.submissionID);
+        await loadSubmission(started.submissionID);
+        await refreshHistory();
+      } catch (err) {
+        setError(conflictMessage(err));
+      }
+    },
+    [loadSubmission, refreshHistory, runningID, slug, solution],
+  );
+
+  const replay = useCallback(async (submissionID, seed) => {
     setError("");
     try {
-      if (solution.dirty) {
-        await solution.save();
-      }
-      const started = await api(`/api/problems/${slug}/run`, {
+      const report = await api(`/api/submissions/${submissionID}/replay`, {
         method: "POST",
+        ...jsonBody({ seed }),
       });
-      setRunningID(started.submissionID);
-      await loadSubmission(started.submissionID);
-      await refreshHistory();
+      return report;
     } catch (err) {
-      setError(conflictMessage(err));
+      setError(err.message);
+      return null;
     }
-  }, [loadSubmission, refreshHistory, runningID, slug, solution]);
+  }, []);
 
   return {
     error,
@@ -95,8 +113,17 @@ export function useRunResults(slug, solution) {
     loadingSubmission,
     running: Boolean(runningID),
     run,
+    replay,
     selectSubmission: loadSubmission,
     submission,
+  };
+}
+
+function jsonBody(value, include = true) {
+  if (!include) return {};
+  return {
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(value),
   };
 }
 

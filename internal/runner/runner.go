@@ -41,7 +41,7 @@ func (r *GoRunner) Compile(ctx context.Context, ws submissions.Workspace) (submi
 	return submissions.CompileResult{Output: result.output}, result.err
 }
 
-func (r *GoRunner) RunSeed(ctx context.Context, ws submissions.Workspace, seed int64) (simtest.Report, error) {
+func (r *GoRunner) RunSeed(ctx context.Context, ws submissions.Workspace, seed int64, opts submissions.RunSeedOptions) (simtest.Report, error) {
 	dir, err := r.prepare(ws)
 	if err != nil {
 		return simtest.Report{}, err
@@ -53,7 +53,11 @@ func (r *GoRunner) RunSeed(ctx context.Context, ws submissions.Workspace, seed i
 	timeout := seedTimeout(ws.Problem)
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	cmd := exec.CommandContext(runCtx, filepath.Join(dir, "run"), "-seed", fmt.Sprint(seed))
+	args := []string{"-seed", fmt.Sprint(seed)}
+	if opts.FullTrace {
+		args = append(args, "-full-trace")
+	}
+	cmd := exec.CommandContext(runCtx, filepath.Join(dir, "run"), args...)
 	cmd.Dir = dir
 	cmd.Env = runnerEnv()
 	output, err := cmd.CombinedOutput()
@@ -124,17 +128,38 @@ import (
 	"encoding/json"
 	"flag"
 	"os"
+	"reflect"
 
+	"distry/pkg/sim"
 	"submission/harness"
+	solution "submission/solution"
 )
 
 func main() {
 	seed := flag.Int64("seed", 1, "seed")
+	fullTrace := flag.Bool("full-trace", false, "include full trace")
 	flag.Parse()
-	report := harness.Run(*seed)
+	newNode := func(deps harness.Deps) sim.Node {
+		return solution.New(adaptDeps(deps))
+	}
+	report := harness.Run(*seed, newNode, harness.RunOptions{FullTrace: *fullTrace})
 	if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
 		panic(err)
 	}
+}
+
+func adaptDeps(deps harness.Deps) solution.Deps {
+	var out solution.Deps
+	src := reflect.ValueOf(deps)
+	dst := reflect.ValueOf(&out).Elem()
+	for i := 0; i < dst.NumField(); i++ {
+		dstField := dst.Field(i)
+		srcField := src.FieldByName(dst.Type().Field(i).Name)
+		if srcField.IsValid() && srcField.Type().AssignableTo(dstField.Type()) {
+			dstField.Set(srcField)
+		}
+	}
+	return out
 }
 `
 	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(mainGo), 0o644); err != nil {

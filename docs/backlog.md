@@ -7,7 +7,10 @@ Next roadmap items:
 
 - Replace the in-house email/password auth with a hosted OAuth provider while preserving
   the current auth middleware boundary.
-- Add stronger runner sandboxing for untrusted submissions.
-- Add more languages by implementing the `submissions.LanguageRunner` contract.
-- Grow the problem set beyond Perfect Link, LCR Election, and Uniform Reliable Broadcast.
-- Add richer trace replay controls and seed pinning in the UI.
+- Container sandboxing for the runner so untrusted submissions execute with filesystem,
+  CPU, memory, process, and network isolation.
+- A second language runtime by implementing the `submissions.LanguageRunner` contract.
+- Richer trace visualization, including Lamport timelines or sequence diagrams.
+- Problem progression and unlocks for guided curricula.
+- Seed fuzzing that searches for violating seeds and stores minimized reproductions.
+- Importing more book chapters as authored problem packages.

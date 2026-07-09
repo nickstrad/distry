@@ -22,17 +22,38 @@ type Report struct {
 	Version int `+"`json:\"v\"`"+`
 	Seed int64 `+"`json:\"seed\"`"+`
 	Passed bool `+"`json:\"passed\"`"+`
+	Trace []map[string]int `+"`json:\"trace,omitempty\"`"+`
 }
+`)
+	writeTestFile(t, repoRoot, "pkg/sim/sim.go", `package sim
+
+type Node interface{}
 `)
 	writeTestFile(t, repoRoot, "problems/toy/harness/harness.go", `package harness
 
 import (
+	"distry/pkg/sim"
 	"distry/pkg/simtest"
-	"submission/solution"
 )
 
-func Run(seed int64) *simtest.Report {
-	return &simtest.Report{Version: simtest.ReportVersion, Seed: seed, Passed: solution.OK()}
+type Deps struct {
+	OK bool
+	Unused string
+}
+
+type RunOptions struct {
+	FullTrace bool
+}
+
+type NewNodeFunc func(Deps) sim.Node
+
+func Run(seed int64, newNode NewNodeFunc, opts ...RunOptions) *simtest.Report {
+	passed, _ := newNode(Deps{OK: true, Unused: "ignored"}).(bool)
+	report := &simtest.Report{Version: simtest.ReportVersion, Seed: seed, Passed: passed}
+	if len(opts) > 0 && opts[0].FullTrace {
+		report.Trace = []map[string]int{{"seq": 1}}
+	}
+	return report
 }
 `)
 	r := NewGoRunner(repoRoot)
@@ -42,18 +63,18 @@ func Run(seed int64) *simtest.Report {
 			Language:  "go",
 			RunConfig: problems.RunConfig{TimeoutSeconds: 5},
 		},
-		Files: map[string]string{"solution.go": "package solution\n\nfunc OK() bool { return true }\n"},
+		Files: map[string]string{"solution.go": "package solution\n\ntype Deps struct { OK bool }\n\nfunc New(deps Deps) any { return deps.OK }\n"},
 	}
 
 	compile, err := r.Compile(context.Background(), ws)
 	if err != nil {
 		t.Fatalf("compile failed: %v\n%s", err, compile.Output)
 	}
-	report, err := r.RunSeed(context.Background(), ws, 42)
+	report, err := r.RunSeed(context.Background(), ws, 42, submissions.RunSeedOptions{FullTrace: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !report.Passed || report.Seed != 42 {
+	if !report.Passed || report.Seed != 42 || len(report.Trace) == 0 {
 		t.Fatalf("unexpected report %+v", report)
 	}
 }

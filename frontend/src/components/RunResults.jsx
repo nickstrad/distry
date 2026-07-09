@@ -33,6 +33,7 @@ export default function RunResults({
   loadingHistory,
   loadingSubmission,
   onSelectSubmission,
+  onReplay,
   submission,
 }) {
   return (
@@ -60,7 +61,11 @@ export default function RunResults({
           </pre>
         )}
         {submission?.reports?.length > 0 && (
-          <SeedResults reports={submission.reports} />
+          <SeedResults
+            onReplay={onReplay}
+            reports={submission.reports}
+            submissionID={submission.id}
+          />
         )}
       </div>
       <SubmissionHistory
@@ -93,7 +98,7 @@ function StatusLine({ loading, submission }) {
   );
 }
 
-function SeedResults({ reports }) {
+function SeedResults({ onReplay, reports, submissionID }) {
   const firstFailed = reports.find((report) => !report.passed)?.seed;
   const [expandedSeed, setExpandedSeed] = useState(
     firstFailed ?? reports[0]?.seed,
@@ -112,16 +117,29 @@ function SeedResults({ reports }) {
           onToggle={() =>
             setExpandedSeed(expandedSeed === report.seed ? null : report.seed)
           }
+          onReplay={onReplay}
           report={report}
+          submissionID={submissionID}
         />
       ))}
     </div>
   );
 }
 
-function SeedResult({ expanded, onToggle, report }) {
+function SeedResult({ expanded, onReplay, onToggle, report, submissionID }) {
   const failed = !report.passed;
   const stats = report.stats || {};
+  const [replay, setReplay] = useState(null);
+  const [replaying, setReplaying] = useState(false);
+  async function replaySeed() {
+    if (!onReplay || !submissionID) return;
+    setReplaying(true);
+    try {
+      setReplay(await onReplay(submissionID, report.seed));
+    } finally {
+      setReplaying(false);
+    }
+  }
   return (
     <article className={failed ? "seed-row failed" : "seed-row"}>
       <button
@@ -144,11 +162,32 @@ function SeedResult({ expanded, onToggle, report }) {
       </button>
       {expanded && failed && (
         <div className="seed-detail">
+          <Button
+            className="replay-button"
+            type="button"
+            variant="outline"
+            onClick={replaySeed}
+            disabled={replaying}
+          >
+            {replaying ? "Replaying..." : "Replay"}
+          </Button>
           <ViolationList violations={report.violations || []} />
           <TraceViewer report={report} />
+          <ReplayResult report={replay} />
         </div>
       )}
     </article>
+  );
+}
+
+function ReplayResult({ report }) {
+  if (!report) return null;
+  return (
+    <div className="replay-result">
+      <strong>Replay</strong>
+      <ViolationList violations={report.violations || []} />
+      <TraceViewer report={report} />
+    </div>
   );
 }
 
@@ -209,6 +248,11 @@ function TraceViewer({ report }) {
 
   return (
     <div className="trace-viewer">
+      {report.truncated && (
+        <p className="trace-truncated">
+          Trace truncated to the first {trace.length} events.
+        </p>
+      )}
       <div className="trace-filters">
         <TraceFilter
           label="Node"

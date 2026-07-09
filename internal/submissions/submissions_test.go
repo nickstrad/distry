@@ -10,6 +10,7 @@ import (
 
 	"distry/internal/problems"
 	"distry/internal/solutions"
+	"distry/pkg/sim"
 	"distry/pkg/simtest"
 )
 
@@ -35,7 +36,7 @@ func TestRunQueuesAndProcessesSubmission(t *testing.T) {
 	defer cancel()
 	svc.Start(ctx)
 
-	queued, err := svc.Run(ctx, "user-a", "perfect-link")
+	queued, err := svc.Run(ctx, "user-a", "perfect-link", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,16 +63,80 @@ func TestRunRejectsConcurrentActiveSubmission(t *testing.T) {
 		Language: "go",
 	}}, map[string]LanguageRunner{"go": &fakeRunner{}}, 1)
 
-	_, err := svc.Run(context.Background(), "user-a", "perfect-link")
+	_, err := svc.Run(context.Background(), "user-a", "perfect-link", nil)
 	if !errors.Is(err, ErrActiveRun) {
 		t.Fatalf("expected ErrActiveRun, got %v", err)
 	}
 }
 
+func TestRunUsesCustomSeeds(t *testing.T) {
+	repo := newMemoryRepo()
+	svc := NewService(repo, fakeSolutionRepo{solution: solutions.Solution{
+		UserID:      "user-a",
+		ProblemSlug: "perfect-link",
+		Files:       map[string]string{"solution.go": "package solution\n"},
+	}}, fakeProblemRepo{problem: problems.Problem{
+		Slug:      "perfect-link",
+		Language:  "go",
+		RunConfig: problems.RunConfig{Seeds: []int{1, 2}},
+	}}, map[string]LanguageRunner{"go": &fakeRunner{}}, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	svc.Start(ctx)
+
+	queued, err := svc.Run(ctx, "user-a", "perfect-link", []int{9, 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := waitForStatus(t, repo, queued.ID, StatusPassed)
+	if seeds := reportSeeds(got.Reports); !slices.Equal(seeds, []int{9, 10}) {
+		t.Fatalf("expected custom seeds, got %+v", seeds)
+	}
+}
+
+func TestReplayUsesSubmissionSnapshotAndFullTrace(t *testing.T) {
+	repo := newMemoryRepo()
+	repo.submissions["sub-a"] = Submission{
+		ID:          "sub-a",
+		UserID:      "user-a",
+		ProblemSlug: "perfect-link",
+		Files:       map[string]string{"solution.go": "snapshot"},
+		Status:      StatusFailed,
+		CreatedAt:   time.Now(),
+	}
+	runner := &fakeRunner{}
+	svc := NewService(repo, fakeSolutionRepo{solution: solutions.Solution{
+		UserID:      "user-a",
+		ProblemSlug: "perfect-link",
+		Files:       map[string]string{"solution.go": "draft"},
+	}}, fakeProblemRepo{problem: problems.Problem{
+		Slug:     "perfect-link",
+		Language: "go",
+	}}, map[string]LanguageRunner{"go": runner}, 1)
+
+	report, err := svc.Replay(context.Background(), "user-a", "sub-a", 11)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Seed != 11 || !runner.fullTrace || runner.lastFiles["solution.go"] != "snapshot" {
+		t.Fatalf("unexpected replay report=%+v fullTrace=%v files=%+v", report, runner.fullTrace, runner.lastFiles)
+	}
+}
+
+func TestTraceIsCapped(t *testing.T) {
+	report := simtest.Report{Trace: make([]sim.TraceEvent, maxStoredTraceEvents+1)}
+	got := capTrace(report)
+	if len(got.Trace) != maxStoredTraceEvents || !got.Truncated {
+		t.Fatalf("expected capped truncated trace, got len=%d truncated=%v", len(got.Trace), got.Truncated)
+	}
+}
+
 type fakeRunner struct {
-	compiles int
-	runs     int
-	reports  map[int64]simtest.Report
+	compiles  int
+	runs      int
+	reports   map[int64]simtest.Report
+	fullTrace bool
+	lastFiles map[string]string
 }
 
 func (f *fakeRunner) Compile(context.Context, Workspace) (CompileResult, error) {
@@ -79,8 +144,10 @@ func (f *fakeRunner) Compile(context.Context, Workspace) (CompileResult, error) 
 	return CompileResult{Output: "ok"}, nil
 }
 
-func (f *fakeRunner) RunSeed(_ context.Context, _ Workspace, seed int64) (simtest.Report, error) {
+func (f *fakeRunner) RunSeed(_ context.Context, ws Workspace, seed int64, opts RunSeedOptions) (simtest.Report, error) {
 	f.runs++
+	f.fullTrace = opts.FullTrace
+	f.lastFiles = cloneFiles(ws.Files)
 	if report, ok := f.reports[seed]; ok {
 		return report, nil
 	}

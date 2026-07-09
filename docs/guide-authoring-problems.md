@@ -28,18 +28,18 @@ Point-to-Point Link problem is the running example.
 
 ## Manifest Fields
 
-| Field | Meaning |
-| --- | --- |
-| `slug` | Stable URL and storage key, such as `perfect-link` |
-| `title` | Display title |
-| `difficulty` | UI label, usually `easy`, `medium`, or `hard` |
-| `language` | Runner key; currently `go` |
-| `tags` | Search and display tags |
-| `order` | Sort order in the problem list |
-| `entrypoint` | Primary template file |
-| `templates` | User-editable starter files |
-| `runs.seeds` | Seeds executed by the platform |
-| `runs.timeout_seconds` | Per-seed runner timeout |
+| Field                  | Meaning                                            |
+| ---------------------- | -------------------------------------------------- |
+| `slug`                 | Stable URL and storage key, such as `perfect-link` |
+| `title`                | Display title                                      |
+| `difficulty`           | UI label, usually `easy`, `medium`, or `hard`      |
+| `language`             | Runner key; currently `go`                         |
+| `tags`                 | Search and display tags                            |
+| `order`                | Sort order in the problem list                     |
+| `entrypoint`           | Primary template file                              |
+| `templates`            | User-editable starter files                        |
+| `runs.seeds`           | Seeds executed by the platform                     |
+| `runs.timeout_seconds` | Per-seed runner timeout                            |
 
 ## Public API Summary
 
@@ -78,9 +78,11 @@ Point-to-Point Link problem is the running example.
     "messagesSent": 10,
     "messagesDropped": 2
   },
-  "trace": []
+  "trace": [],
+  "truncated": true
 }
 ```
 
 Passing reports omit `trace` unless the harness requests `FullTrace`. Failed reports
-include the trace so the UI can show the failure context.
+include the trace so the UI can show the failure context. The platform caps stored traces
+and sets `truncated: true` when the stored event list was shortened.

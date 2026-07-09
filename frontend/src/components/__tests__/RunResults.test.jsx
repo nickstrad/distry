@@ -54,6 +54,37 @@ describe("RunResults", () => {
       within(table).queryByText("duplicate delivery"),
     ).not.toBeInTheDocument();
   });
+
+  it("replays a failed seed and shows truncated traces", async () => {
+    const onReplay = vi.fn().mockResolvedValue({
+      seed: 11,
+      passed: false,
+      truncated: true,
+      violations: [
+        {
+          checker: "perfect-link.no-dup",
+          message: "duplicate delivery",
+          eventSeq: 3,
+        },
+      ],
+      trace: failedSubmission().reports[0].trace,
+    });
+
+    render(
+      <RunResults
+        history={[]}
+        onReplay={onReplay}
+        onSelectSubmission={vi.fn()}
+        submission={failedSubmission()}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Replay" }));
+    expect(onReplay).toHaveBeenCalledWith("sub-fail", 11);
+    expect(
+      await screen.findByText("Trace truncated to the first 3 events."),
+    ).toBeInTheDocument();
+  });
 });
 
 function passedSubmission() {

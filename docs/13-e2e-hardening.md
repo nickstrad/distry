@@ -1,5 +1,7 @@
 # 13 — E2E hardening: replay, full-flow verification, polish
 
+**Status:** Done.
+
 **Depends on:** all previous plans (final integration slice).
 
 ## Goal
@@ -9,7 +11,7 @@ problems, and fix the papercuts that block daily use.
 
 ## Steps
 
-1. **Replay endpoint** (if deferred in plan 08): `POST /api/submissions/{id}/replay`
+1. **Replay endpoint**: `POST /api/submissions/{id}/replay`
    `{seed}` reruns exactly one seed from the submission's **file snapshot** (not current
    draft) with full trace always included. UI: "Replay" button on any seed row of any
    historical submission. Determinism assertion: replay of a failed seed reproduces the
