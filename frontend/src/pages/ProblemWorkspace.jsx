@@ -1,16 +1,19 @@
-import { Link, useParams } from 'react-router-dom'
-import Editor from '../components/Editor.jsx'
-import Markdown from '../components/Markdown.jsx'
-import { DifficultyBadge, TagList } from '../components/ProblemBadges.jsx'
-import { Button } from '../components/ui/button'
-import { Skeleton } from '../components/ui/skeleton'
-import { useProblem } from '../hooks/useProblem.js'
-import { useSolutionFiles } from '../hooks/useSolutionFiles.js'
+import { Link, useParams } from "react-router-dom";
+import Editor from "../components/Editor.jsx";
+import Markdown from "../components/Markdown.jsx";
+import { DifficultyBadge, TagList } from "../components/ProblemBadges.jsx";
+import RunResults from "../components/RunResults.jsx";
+import { Button } from "../components/ui/button";
+import { Skeleton } from "../components/ui/skeleton";
+import { useProblem } from "../hooks/useProblem.js";
+import { useRunResults } from "../hooks/useRunResults.js";
+import { useSolutionFiles } from "../hooks/useSolutionFiles.js";
 
 export default function ProblemWorkspace() {
-  const { slug } = useParams()
-  const { problem, loading, error } = useProblem(slug)
-  const solution = useSolutionFiles(problem)
+  const { slug } = useParams();
+  const { problem, loading, error } = useProblem(slug);
+  const solution = useSolutionFiles(problem);
+  const runs = useRunResults(problem?.slug, solution);
 
   if (loading) {
     return (
@@ -18,16 +21,17 @@ export default function ProblemWorkspace() {
         <span className="sr-only">Loading problem...</span>
         <Skeleton className="h-7 w-52" />
       </section>
-    )
+    );
   }
-  if (error) return <section className="workspace error-panel">{error}</section>
+  if (error)
+    return <section className="workspace error-panel">{error}</section>;
   if (solution.loading) {
     return (
       <section className="workspace">
         <span className="sr-only">Loading solution...</span>
         <Skeleton className="h-7 w-52" />
       </section>
-    )
+    );
   }
 
   return (
@@ -47,8 +51,10 @@ export default function ProblemWorkspace() {
       </aside>
 
       <section className="code-pane" aria-label="Solution editor">
-        <CodeToolbar solution={solution} />
-        {solution.error && <p className="error solution-error">{solution.error}</p>}
+        <CodeToolbar runs={runs} solution={solution} />
+        {solution.error && (
+          <p className="error solution-error">{solution.error}</p>
+        )}
         <div className="editor-frame">
           <Editor
             fileName={solution.activeFile}
@@ -56,12 +62,21 @@ export default function ProblemWorkspace() {
             onChange={solution.updateActiveFile}
           />
         </div>
+        <RunResults
+          error={runs.error}
+          history={runs.history}
+          loadingHistory={runs.loadingHistory}
+          loadingSubmission={runs.loadingSubmission}
+          onSelectSubmission={runs.selectSubmission}
+          submission={runs.submission}
+        />
       </section>
     </section>
-  )
+  );
 }
 
-function CodeToolbar({ solution }) {
+function CodeToolbar({ runs, solution }) {
+  const runDisabled = solution.busy || runs.running;
   return (
     <div className="code-toolbar">
       <FileTabs
@@ -70,27 +85,36 @@ function CodeToolbar({ solution }) {
         onSelect={solution.setActiveFile}
       />
       <div className="run-controls">
-        <span className={solution.dirty ? 'save-state dirty' : 'save-state'}>
+        <span className={solution.dirty ? "save-state dirty" : "save-state"}>
           {saveLabel(solution)}
         </span>
-        <Button type="button" variant="outline" onClick={solution.reset} disabled={solution.busy}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={solution.reset}
+          disabled={solution.busy}
+        >
           Reset
         </Button>
-        <Button type="button" onClick={solution.save} disabled={!solution.dirty || solution.busy}>
+        <Button
+          type="button"
+          onClick={solution.save}
+          disabled={!solution.dirty || solution.busy}
+        >
           Save
         </Button>
-        <Button type="button" disabled>
-          Run
+        <Button type="button" onClick={runs.run} disabled={runDisabled}>
+          {runs.running ? "Running..." : "Run"}
         </Button>
       </div>
     </div>
-  )
+  );
 }
 
 function saveLabel(solution) {
-  if (solution.saving) return 'Saving...'
-  if (solution.dirty) return 'Unsaved changes'
-  return 'Saved'
+  if (solution.saving) return "Saving...";
+  if (solution.dirty) return "Unsaved changes";
+  return "Saved";
 }
 
 function FileTabs({ activeFile, fileNames, onSelect }) {
@@ -98,8 +122,8 @@ function FileTabs({ activeFile, fileNames, onSelect }) {
     <div className="file-tabs" role="tablist" aria-label="Template files">
       {fileNames.map((fileName) => (
         <Button
-          variant={fileName === activeFile ? 'secondary' : 'ghost'}
-          className={fileName === activeFile ? 'file-tab active' : 'file-tab'}
+          variant={fileName === activeFile ? "secondary" : "ghost"}
+          className={fileName === activeFile ? "file-tab active" : "file-tab"}
           key={fileName}
           type="button"
           role="tab"
@@ -110,5 +134,5 @@ function FileTabs({ activeFile, fileNames, onSelect }) {
         </Button>
       ))}
     </div>
-  )
+  );
 }
