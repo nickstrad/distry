@@ -1,0 +1,21 @@
+# Go
+/tmp/
+*.exe
+*.out
+distry
+
+# air
+.air.toml.local
+
+# Node / frontend
+node_modules/
+frontend/dist/
+npm-debug.log*
+yarn-error.log*
+
+# Env / editor
+.env
+.env.local
+.DS_Store
+.idea/
+.vscode/
