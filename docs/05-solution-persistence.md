@@ -3,6 +3,13 @@
 **Depends on:** 02 (auth), 03 (problems). UI portion depends on 04.
 **Enables:** 08 (submissions run the *saved* files).
 
+**Status:** Done.
+
+Implemented per-user solution drafts with a `solutions` table, validation against problem
+templates, authenticated save/load APIs, frontend draft loading with template fallback,
+explicit Save/Cmd-S persistence, dirty-state warnings, reset-to-template, and user-scoped
+handler tests.
+
 ## Goal
 
 Each user has exactly one working draft per problem (a set of named files). Saving is

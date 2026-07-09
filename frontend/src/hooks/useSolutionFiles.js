@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, apiMaybe } from '../api.js'
 
 export function useSolutionFiles(problem) {
-  const templateFiles = problem?.templates || {}
+  const slug = problem?.slug
+  const templateFiles = useMemo(() => problem?.templates || {}, [problem])
   const fileNames = useMemo(() => Object.keys(templateFiles).sort(), [templateFiles])
   const [files, setFiles] = useState({})
   const [savedFiles, setSavedFiles] = useState({})
@@ -11,19 +12,21 @@ export function useSolutionFiles(problem) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  const dirty = useMemo(() => !sameFiles(files, savedFiles), [files, savedFiles])
+  const busy = loading || saving
+
   useEffect(() => {
-    if (!problem) return undefined
+    if (!slug) return undefined
+
     let active = true
     setLoading(true)
     setError('')
     setActiveFile(fileNames[0] || '')
 
-    apiMaybe(`/api/problems/${problem.slug}/solution`)
+    apiMaybe(solutionPath(slug))
       .then((solution) => {
         if (!active) return
-        const nextFiles = solution?.files || templateFiles
-        setFiles(nextFiles)
-        setSavedFiles(nextFiles)
+        replaceFiles(setFiles, setSavedFiles, solution?.files || templateFiles)
       })
       .catch((err) => {
         if (active) setError(err.message)
@@ -35,10 +38,35 @@ export function useSolutionFiles(problem) {
     return () => {
       active = false
     }
-  }, [problem?.slug])
+  }, [slug, fileNames, templateFiles])
 
-  const dirty = useMemo(() => JSON.stringify(files) !== JSON.stringify(savedFiles), [files, savedFiles])
-  const busy = loading || saving
+  const persist = useCallback(
+    async (nextFiles, { updateEditorFirst = false } = {}) => {
+      if (!slug) return
+      if (updateEditorFirst) setFiles(nextFiles)
+      setSaving(true)
+      setError('')
+      try {
+        const solution = await api(solutionPath(slug), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files: nextFiles }),
+        })
+        replaceFiles(setFiles, setSavedFiles, solution.files)
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setSaving(false)
+      }
+    },
+    [slug],
+  )
+
+  const save = useCallback(() => persist(files), [files, persist])
+  const reset = useCallback(
+    () => persist(templateFiles, { updateEditorFirst: true }),
+    [persist, templateFiles],
+  )
 
   useEffect(() => {
     function beforeUnload(event) {
@@ -61,38 +89,10 @@ export function useSolutionFiles(problem) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [dirty, busy, files, problem?.slug])
+  }, [dirty, busy, save])
 
   function updateActiveFile(content) {
     setFiles((current) => ({ ...current, [activeFile]: content }))
-  }
-
-  async function save() {
-    await persist(files)
-  }
-
-  async function reset() {
-    await persist(templateFiles, { updateEditorFirst: true })
-  }
-
-  async function persist(nextFiles, { updateEditorFirst = false } = {}) {
-    if (!problem) return
-    if (updateEditorFirst) setFiles(nextFiles)
-    setSaving(true)
-    setError('')
-    try {
-      const solution = await api(`/api/problems/${problem.slug}/solution`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: nextFiles }),
-      })
-      setFiles(solution.files)
-      setSavedFiles(solution.files)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setSaving(false)
-    }
   }
 
   return {
@@ -110,4 +110,19 @@ export function useSolutionFiles(problem) {
     setActiveFile,
     updateActiveFile,
   }
+}
+
+function solutionPath(slug) {
+  return `/api/problems/${slug}/solution`
+}
+
+function replaceFiles(setFiles, setSavedFiles, nextFiles) {
+  setFiles(nextFiles)
+  setSavedFiles(nextFiles)
+}
+
+function sameFiles(a, b) {
+  const aKeys = Object.keys(a)
+  const bKeys = Object.keys(b)
+  return aKeys.length === bKeys.length && aKeys.every((key) => a[key] === b[key])
 }
