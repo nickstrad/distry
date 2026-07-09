@@ -9,8 +9,10 @@ export function useSolutionFiles(problem) {
   const [savedFiles, setSavedFiles] = useState({})
   const [activeFile, setActiveFile] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loadedSlug, setLoadedSlug] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const effectiveActiveFile = activeFile || fileNames[0] || ''
 
   const dirty = useMemo(() => !sameFiles(files, savedFiles), [files, savedFiles])
   const busy = loading || saving
@@ -20,6 +22,7 @@ export function useSolutionFiles(problem) {
 
     let active = true
     setLoading(true)
+    setLoadedSlug('')
     setError('')
     setActiveFile(fileNames[0] || '')
 
@@ -27,6 +30,7 @@ export function useSolutionFiles(problem) {
       .then((solution) => {
         if (!active) return
         replaceFiles(setFiles, setSavedFiles, solution?.files || templateFiles)
+        setLoadedSlug(slug)
       })
       .catch((err) => {
         if (active) setError(err.message)
@@ -92,7 +96,7 @@ export function useSolutionFiles(problem) {
   }, [dirty, busy, save])
 
   function updateActiveFile(content) {
-    setFiles((current) => ({ ...current, [activeFile]: content }))
+    setFiles((current) => ({ ...current, [effectiveActiveFile]: content }))
   }
 
   return {
@@ -101,9 +105,9 @@ export function useSolutionFiles(problem) {
     error,
     files,
     fileNames,
-    activeFile,
-    activeContent: files[activeFile] || '',
-    loading,
+    activeFile: effectiveActiveFile,
+    activeContent: files[effectiveActiveFile] || '',
+    loading: loading || Boolean(slug && loadedSlug !== slug),
     reset,
     save,
     saving,

@@ -1,14 +1,20 @@
+import { Badge } from './ui/badge'
+
 export function DifficultyBadge({ difficulty }) {
-  return <span className={`difficulty ${difficulty}`}>{difficulty}</span>
+  return (
+    <Badge className="difficulty-badge" variant="secondary">
+      {difficulty}
+    </Badge>
+  )
 }
 
 export function TagList({ tags }) {
   return (
     <>
       {tags.map((tag) => (
-        <span className="tag" key={tag}>
+        <Badge className="tag-badge" key={tag} variant="outline">
           {tag}
-        </span>
+        </Badge>
       ))}
     </>
   )
