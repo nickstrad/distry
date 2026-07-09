@@ -66,6 +66,7 @@ Failures report the seed so the exact run is **replayable**.
 | 12 | Problem 3 (medium): Uniform Reliable Broadcast with crash faults | same as 10 |
 | 13 | E2E hardening: replay endpoint, full-flow test, seed pinning, polish | all |
 | 14 | Documentation: README, user guide, problem-author guide, godoc | draftable after 07; final after 13 |
+| 15 | shadcn/ui + Tailwind v4 design system | 04; best before 09 |
 
 Parallelizable tracks: **{01→02, 03→04→05}** (webapp track) and **{06→07}** (simulator
 track) are independent until plan 08 joins them. Problems 10–12 are independent of each
